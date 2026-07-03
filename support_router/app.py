@@ -1,4 +1,3 @@
-"""CloudNest multi-agent support router (LangGraph) — design: docs/superpowers/specs/."""
 import os
 import re
 from operator import add

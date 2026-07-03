@@ -1,7 +1,3 @@
-"""HTTP wrapper for the CloudNest support graph. Reuses app.py unchanged.
-
-Run from the support_router directory:  uvicorn server:api --port 8000
-"""
 import os
 import sys
 from pathlib import Path
