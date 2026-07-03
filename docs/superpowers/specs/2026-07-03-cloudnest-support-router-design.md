@@ -10,11 +10,12 @@ Graph: `START → router → retriever → [conditional] → responder | clarify
 - **router** — rule-based keyword classifier. Labels the latest user query as
   `billing`, `technical`, or `general`. No LLM, no function-calling (hard constraint).
 - **retriever** — pure-Python lexical retrieval. Docs are chunked by `##` headings at
-  startup. Query terms (stopwords removed) are scored against chunks with TF weighting,
-  restricted to the category's doc subset:
+  startup. Query terms (stopwords removed) are scored against chunks with TF weighting.
+  All docs are considered; chunks from the routed category's preferred docs get a 2x
+  score boost (soft scoping — keeps cross-category questions answerable):
   - billing → `02_pricing_billing.md`, `03_account_management.md`
   - technical → `04_technical_setup.md`, `05_troubleshooting.md`
-  - general → all docs
+  - general → no boost
   Emits top-3 chunks and a `confidence` score (fraction of query terms matched in the
   best chunk).
 - **conditional edge** — `confidence >= 0.25` → responder; otherwise → clarify.
