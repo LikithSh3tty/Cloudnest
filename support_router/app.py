@@ -142,11 +142,14 @@ def build_app():
 
 
 if __name__ == "__main__":
+    import os
     import sys
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     app = build_app()
     config = {"configurable": {"thread_id": "cli-session"}}  # persists across turns
-    print("CloudNest support (type 'quit' to exit)")
+    mode = "Claude responder" if os.environ.get("ANTHROPIC_API_KEY") else \
+        "extractive fallback (ANTHROPIC_API_KEY not set in this shell)"
+    print(f"CloudNest support (type 'quit' to exit) — mode: {mode}")
     while True:
         try:
             query = input("\nyou> ").strip()
