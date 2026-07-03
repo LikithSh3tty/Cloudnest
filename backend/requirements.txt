@@ -1,2 +1,4 @@
 langgraph>=0.2
 anthropic>=0.40
+fastapi
+uvicorn

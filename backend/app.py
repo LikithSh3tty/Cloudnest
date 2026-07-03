@@ -12,7 +12,7 @@ if ENV_FILE.exists():
         _key, _, _value = _line.partition("=")
         if _key.strip() and not _line.lstrip().startswith("#"):
             os.environ.setdefault(_key.strip(), _value.strip())
-DOCS_DIR = Path(__file__).resolve().parent.parent / "cloudnest_docs"
+DOCS_DIR = Path(__file__).resolve().parent / "cloudnest_docs"
 CONFIDENCE_THRESHOLD = 0.25
 CATEGORY_DOCS = {
     "billing": {"02_pricing_billing.md", "03_account_management.md"},

@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 from uuid import uuid4
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "support_router"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from fastapi import FastAPI
 from pydantic import BaseModel
 
