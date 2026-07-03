@@ -38,7 +38,9 @@ STOPWORDS = {
     "have", "has", "be", "will", "about", "this", "that", "there", "they",
     "them", "which", "much", "cloudnest",
 }
-SYNONYMS = {"cost": "price", "costs": "price", "pricing": "price"}
+SYNONYMS = {"cost": "price", "costs": "price", "pricing": "price", "files": "file",
+            "conflicting": "conflict", "conflicted": "conflict", "conflicts": "conflict",
+            "merging": "merge", "merges": "merge"}
 
 def tokenize(text: str) -> list[str]:
     words = re.findall(r"[a-z0-9']+", text.lower())
