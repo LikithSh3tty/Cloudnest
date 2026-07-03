@@ -54,6 +54,18 @@ line to fund the additions. The API-access question now answers completely (conf
 Added `SUBMISSION_NOTE.md` (½ page): why LangGraph over a simple chain, what state
 persists across nodes, what happens on retrieval failure.
 
+## 8. Synonym map extended with word-form variants (147 lines)
+**Problem:** "Does CloudNest automatically merge conflicting files?" → wrong "docs don't
+cover it" answer. Exact-token matching treats "conflicting" ≠ "conflict"/"conflicted"
+and "files" ≠ "file", so the Conflict Resolution chunk lost to chunks that repeat
+generic words; the router also missed the technical label for the same reason.
+**Change:** `SYNONYMS` gained conflicting/conflicted/conflicts → conflict,
+files → file, merging/merges → merge. Query now routes technical with confidence
+0.75 and answers correctly ("creates a conflicted copy; does not auto-merge").
+**Known limit (deliberate):** this is per-word-family patching; the general fix is
+embedding-based retrieval (~10 lines with sentence-transformers, same graph), kept out
+of scope to preserve the transparent, defensible TF scoring for the live walkthrough.
+
 ## Operational lesson (bit us twice)
 Python reads `app.py` once at launch. After any code or environment change, restart the
 chat session — a running `you>` prompt keeps executing the old version.
