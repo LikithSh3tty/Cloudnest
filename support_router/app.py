@@ -97,8 +97,9 @@ def llm_answer(question: str, context: str, history: list[dict]) -> str | None:
             model="claude-opus-4-8",
             max_tokens=1024,
             system="You are CloudNest's customer support agent. Answer using only "
-                   "the provided documentation context. Be concise and friendly. "
-                   "If the context does not cover the question, say so.",
+                   "the provided documentation context. Be concise and friendly; "
+                   "plain text, no emoji. If the context does not cover the "
+                   "question, say so.",
             messages=history[:-1] + [{"role": "user", "content": prompt}],
         )
         return "".join(b.text for b in response.content if b.type == "text") or None
@@ -141,6 +142,8 @@ def build_app():
 
 
 if __name__ == "__main__":
+    import sys
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     app = build_app()
     config = {"configurable": {"thread_id": "cli-session"}}  # persists across turns
     print("CloudNest support (type 'quit' to exit)")
