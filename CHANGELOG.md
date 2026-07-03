@@ -66,6 +66,17 @@ files → file, merging/merges → merge. Query now routes technical with confid
 embedding-based retrieval (~10 lines with sentence-transformers, same graph), kept out
 of scope to preserve the transparent, defensible TF scoring for the live walkthrough.
 
+## 9. Vercel deployment: stateless API, client-carried history
+**Problem:** Vercel Python functions are stateless — the in-process MemorySaver cannot
+persist turns between requests.
+**Change:** `api/index.py` replaces `server.py`: the browser sends the conversation
+history with each request and the graph is invoked once per request on a fresh thread.
+`app.py` is untouched — the same messages-list input drives router/retriever/responder.
+Added `vercel.json` (frontend build, `/api/*` rewrite, `includeFiles` bundling
+`support_router/` + `cloudnest_docs/`) and root `requirements.txt`. The same API file
+serves local dev (`python -m uvicorn api.index:app`). Multi-turn verified over the
+stateless protocol.
+
 ## Operational lesson (bit us twice)
 Python reads `app.py` once at launch. After any code or environment change, restart the
 chat session — a running `you>` prompt keeps executing the old version.

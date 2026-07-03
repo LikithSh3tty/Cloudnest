@@ -1,7 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 
-const THREAD_ID = crypto.randomUUID();
-
 const EXAMPLES = [
   "How much does the Pro plan cost?",
   "Which plans include API access?",
@@ -80,6 +78,11 @@ export default function App() {
   async function send(text) {
     const question = (text ?? input).trim();
     if (!question || busy) return;
+    // serverless functions are stateless: the browser carries the conversation
+    const history = messages.map((m) => ({
+      role: m.role === "user" ? "user" : "assistant",
+      content: m.text,
+    }));
     setInput("");
     setError(null);
     setMessages((m) => [...m, { role: "user", text: question }]);
@@ -88,7 +91,7 @@ export default function App() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: question, thread_id: THREAD_ID }),
+        body: JSON.stringify({ message: question, history }),
       });
       if (!res.ok) throw new Error(`server returned ${res.status}`);
       const data = await res.json();
