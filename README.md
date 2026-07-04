@@ -1,5 +1,13 @@
 # CloudNest Support Agent
 
+![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)
+![LangGraph](https://img.shields.io/badge/LangGraph-0.2-1C3C3C?logo=langchain&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
+![Claude](https://img.shields.io/badge/Anthropic-Claude_Opus_4.8-D97757?logo=anthropic&logoColor=white)
+![React](https://img.shields.io/badge/React-18.3-61DAFB?logo=react&logoColor=black)
+![Vite](https://img.shields.io/badge/Vite-5.4-646CFF?logo=vite&logoColor=white)
+![Vercel](https://img.shields.io/badge/Deploy-Vercel-000000?logo=vercel&logoColor=white)
+
 A support chatbot for a fictional cloud-storage product called CloudNest. You type a question in plain English, and it figures out whether you're asking about billing or something technical, pulls the relevant bits out of the product docs, and answers you. It runs on a small LangGraph state machine on the backend and a React chat window on the front.
 
 The whole thing is built around a folder of markdown docs. There's no vector database and no embeddings — retrieval is plain keyword matching with a bit of scoring on top. That was a deliberate choice: it's easy to read, easy to debug, and it's more than enough for a doc set this size. If the API key is present it uses Claude to phrase the final answer; if not, it just hands you back the matching doc sections. Either way you always get an answer.
