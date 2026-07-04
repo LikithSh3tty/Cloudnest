@@ -3,7 +3,6 @@
 ![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)
 ![LangGraph](https://img.shields.io/badge/LangGraph-0.2-1C3C3C?logo=langchain&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
-![Claude](https://img.shields.io/badge/Anthropic-Claude_Opus_4.8-D97757?logo=anthropic&logoColor=white)
 ![React](https://img.shields.io/badge/React-18.3-61DAFB?logo=react&logoColor=black)
 ![Vite](https://img.shields.io/badge/Vite-5.4-646CFF?logo=vite&logoColor=white)
 ![Vercel](https://img.shields.io/badge/Deploy-Vercel-000000?logo=vercel&logoColor=white)
