@@ -16,7 +16,8 @@ if ENV_FILE.exists():
         if _key.strip() and not _line.lstrip().startswith("#"):
             os.environ.setdefault(_key.strip(), _value.strip())
 DOCS_DIR = Path(__file__).resolve().parent / "cloudnest_docs"
-CONFIDENCE_THRESHOLD = 0.25
+# cosine similarity, chosen from backend/calibrate.py output
+CONFIDENCE_THRESHOLD = 0.30
 BILLING_WORDS = {
     "price", "pricing", "plan", "plans", "pay", "payment", "bill", "billing",
     "invoice", "refund", "subscription", "upgrade", "downgrade", "charge",
@@ -93,6 +94,7 @@ class State(TypedDict):
     category: str
     context: list[dict]
     confidence: float
+    clarified: bool
 
 def router(state: State) -> dict:
     words = set(tokenize(state["messages"][-1]["content"]))
@@ -163,12 +165,12 @@ def responder(state: State) -> dict:
     if answer is None:
         parts = [f"From our docs ({c['doc']} - {c['title']}):\n{c['text']}" for c in state["context"]]
         answer = "\n\n".join(parts)
-    return {"messages": [{"role": "assistant", "content": answer}]}
+    return {"messages": [{"role": "assistant", "content": answer}], "clarified": False}
 
 def clarify(_state: State) -> dict:
     msg = ("I couldn't find a confident answer for that in our documentation. Could you "
            "rephrase or add detail (your plan, your device, or the exact error you see)?")
-    return {"messages": [{"role": "assistant", "content": msg}]}
+    return {"messages": [{"role": "assistant", "content": msg}], "clarified": True}
 
 def build_app():
     graph = StateGraph(State)

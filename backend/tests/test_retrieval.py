@@ -61,3 +61,19 @@ def test_lexical_retrieve_still_works():
 
 def test_category_boost_is_gone():
     assert not hasattr(app, "CATEGORY_DOCS")
+
+
+def test_graph_reports_which_branch_answered():
+    graph = app.build_app()
+    config = {"configurable": {"thread_id": "test-routing"}}
+    result = graph.invoke(
+        {"messages": [{"role": "user", "content": "what is the capital of Peru"}]},
+        config,
+    )
+    assert result["clarified"] is True
+
+    result = graph.invoke(
+        {"messages": [{"role": "user", "content": "how do I get a refund"}]},
+        {"configurable": {"thread_id": "test-routing-2"}},
+    )
+    assert result["clarified"] is False

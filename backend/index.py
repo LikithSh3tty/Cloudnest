@@ -25,9 +25,12 @@ def chat(body: ChatIn):
     result = graph.invoke({"messages": messages}, config)
     return {"answer": result["messages"][-1]["content"],
             "category": result["category"],
-            "confidence": result["confidence"]}
+            "confidence": result["confidence"],
+            "clarified": result["clarified"]}
 
 
 @app.get("/api/health")
 def health():
-    return {"mode": "claude" if os.environ.get("ANTHROPIC_API_KEY") else "extractive"}
+    from app import INDEX
+    return {"mode": "claude" if os.environ.get("ANTHROPIC_API_KEY") else "extractive",
+            "retrieval": "semantic" if INDEX is not None else "lexical"}

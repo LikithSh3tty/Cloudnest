@@ -95,7 +95,7 @@ export default function App() {
       });
       if (!res.ok) throw new Error(`server returned ${res.status}`);
       const data = await res.json();
-      const isClarify = data.confidence < 0.25; // mirrors the graph's conditional edge
+      const isClarify = data.clarified; // the graph reports which branch it took
       setMessages((m) => [
         ...m,
         {

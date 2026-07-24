@@ -36,7 +36,7 @@ The backend is a LangGraph `StateGraph` with four nodes. A question comes in, ge
                   │ retriever │   score doc sections, compute confidence
                   └─────┬─────┘
                         │
-             confidence ≥ 0.25 ?
+             confidence ≥ 0.30 ?
               ┌─────────┴─────────┐
               │ yes               │ no
               ▼                   ▼
@@ -151,7 +151,7 @@ Response:
 }
 ```
 
-**`GET /api/health`** — returns `{ "mode": "claude" }` if a key is configured, `{ "mode": "extractive" }` otherwise. The UI uses this to set the status badge.
+**`GET /api/health`** — returns `{ "mode": "claude" }` if a key is configured, `{ "mode": "extractive" }` otherwise, plus a `retrieval` field: `"semantic"` when the embedding index is loaded, or `"lexical"` when it has fallen back to keyword retrieval. The UI uses `mode` to set the status badge.
 
 ## How retrieval actually works
 
@@ -159,7 +159,7 @@ Worth a note since it's the core of the thing and there's nothing hidden.
 
 Each doc gets split into sections on its markdown headings. When a question comes in, both the question and every section get tokenized — lowercased, stripped of stopwords, with a small synonym map so a handful of common variants collapse together (`cost`/`costs`/`pricing` → `price`, and so on). Sections are then scored by how many query terms they contain and how often, with a 2× boost for docs that match the routed category. The top few sections above zero become the context, and confidence is roughly the share of your query's terms that the best section covered.
 
-If that top score clears `0.25` (a constant near the top of `app.py`, easy to tweak), the responder runs. If it doesn't, you get the clarify prompt instead. It's a blunt heuristic, but it keeps the agent from confidently answering questions the docs don't actually cover.
+If that top score clears `0.30` (a constant near the top of `app.py`, easy to tweak), the responder runs. If it doesn't, you get the clarify prompt instead. It's a blunt heuristic, but it keeps the agent from confidently answering questions the docs don't actually cover.
 
 ## Deployment
 
