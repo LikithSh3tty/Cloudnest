@@ -176,6 +176,7 @@ export default function App() {
   }
 
   const online = mode === "claude";
+  const empty = messages.length === 0 && !busy && !error;
 
   return (
     <div className="app">
@@ -224,7 +225,7 @@ export default function App() {
           )}
         </div>
 
-        <div className="main-scroll" ref={scrollRef}>
+        <div className={`main-scroll ${empty ? "is-empty" : ""}`} ref={scrollRef}>
           <header className="hero">
             <span className="eyebrow">{greeting()}</span>
             <h1 className="hero-title">
@@ -236,20 +237,22 @@ export default function App() {
             </p>
           </header>
 
-          <div className="conversation">
-            {messages.map((msg, i) =>
-              msg.role === "user" ? (
-                <div key={i} className="user">
-                  {msg.text}
-                </div>
-              ) : (
-                <AgentReply key={i} msg={msg} />
-              )
-            )}
-            {busy && <TypingReply />}
-            {error && <div className="error">{error}</div>}
-            <div ref={endRef} />
-          </div>
+          {!empty && (
+            <div className="conversation">
+              {messages.map((msg, i) =>
+                msg.role === "user" ? (
+                  <div key={i} className="user">
+                    {msg.text}
+                  </div>
+                ) : (
+                  <AgentReply key={i} msg={msg} />
+                )
+              )}
+              {busy && <TypingReply />}
+              {error && <div className="error">{error}</div>}
+              <div ref={endRef} />
+            </div>
+          )}
         </div>
 
         <form
