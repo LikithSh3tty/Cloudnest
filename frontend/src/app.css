@@ -179,7 +179,110 @@ body {
 }
 
 .agent-body {
-  white-space: pre-wrap;
+  font-size: 14.5px;
+  line-height: 1.55;
+}
+
+.agent-body > :first-child {
+  margin-top: 0;
+}
+
+.agent-body > :last-child {
+  margin-bottom: 0;
+}
+
+.agent-body p {
+  margin: 0 0 10px;
+}
+
+.agent-body ul,
+.agent-body ol {
+  margin: 0 0 10px;
+  padding-left: 20px;
+}
+
+.agent-body li {
+  margin: 3px 0;
+}
+
+.agent-body li::marker {
+  color: var(--ink-soft);
+}
+
+.agent-body strong {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.agent-body code {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.88em;
+  background: var(--paper);
+  border: 1px solid var(--mist);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+.agent-body hr {
+  border: none;
+  border-top: 1px solid var(--mist);
+  margin: 14px 0;
+}
+
+.agent-body a {
+  color: var(--cobalt);
+}
+
+.agent-foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.sources {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.sources-label {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.chip {
+  font-size: 12px;
+  color: var(--amber);
+  background: var(--amber-soft);
+  border-radius: 999px;
+  padding: 2px 10px;
+  white-space: nowrap;
+}
+
+.copy {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  color: var(--ink-soft);
+  background: none;
+  border: 1px solid var(--mist);
+  border-radius: 5px;
+  padding: 3px 9px;
+  cursor: pointer;
+  transition: color 120ms ease, border-color 120ms ease;
+}
+
+.copy:hover {
+  color: var(--cobalt);
+  border-color: var(--cobalt);
 }
 
 .status {

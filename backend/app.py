@@ -155,9 +155,16 @@ def llm_answer(question: str, context: str, history: list[dict]) -> str | None:
         response = client.messages.create(
             model="claude-opus-4-8",
             max_tokens=1024,
-            system="You are CloudNest's customer support agent. Answer using only "
-                   "the provided documentation context. Be concise and friendly; plain "
-                   "text, no emoji. If the context does not cover the question, say so.",
+            system="You are CloudNest's customer support agent. Answer only from the "
+                   "provided documentation context; if it doesn't cover the question, "
+                   "say so plainly.\n\n"
+                   "Format for fast reading, using Markdown:\n"
+                   "- Open with a one-sentence direct answer.\n"
+                   "- Use a bulleted list for options or conditions, a numbered list for "
+                   "step-by-step instructions.\n"
+                   "- Bold the key term, plan name, or setting the user needs.\n"
+                   "Keep it tight: no preamble, no restating the question, no emoji. Plain "
+                   "prose is fine when the answer is a single fact.",
             messages=history[:-1] + [{"role": "user", "content": prompt}],
         )
         return "".join(b.text for b in response.content if b.type == "text") or None
@@ -166,13 +173,23 @@ def llm_answer(question: str, context: str, history: list[dict]) -> str | None:
         print(f"llm_answer failed: {type(e).__name__}")
         return None
 
+def sources_from_context(context: list[dict]) -> list[str]:
+    """Unique section titles behind an answer, in retrieved order, for citation."""
+    seen, out = set(), []
+    for c in context:
+        if c["title"] not in seen:
+            seen.add(c["title"])
+            out.append(c["title"])
+    return out
+
 def responder(state: State) -> dict:
     question = state["messages"][-1]["content"]
     context = "\n\n".join(f"[{c['doc']} - {c['title']}]\n{c['text']}" for c in state["context"])
     answer = llm_answer(question, context, state["messages"])
     if answer is None:
-        parts = [f"From our docs ({c['doc']} - {c['title']}):\n{c['text']}" for c in state["context"]]
-        answer = "\n\n".join(parts)
+        # no key / API down: hand back the retrieved sections as clean Markdown
+        parts = [f"**{c['title']}**\n\n{c['text']}" for c in state["context"]]
+        answer = "Here's what our documentation says:\n\n" + "\n\n---\n\n".join(parts)
     return {"messages": [{"role": "assistant", "content": answer}], "clarified": False}
 
 def clarify(_state: State) -> dict:

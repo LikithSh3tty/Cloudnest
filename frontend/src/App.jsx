@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
 
 const EXAMPLES = [
   "How much does the Pro plan cost?",
@@ -41,6 +42,28 @@ function ConfidenceMeter({ value }) {
   );
 }
 
+function CopyButton({ text }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      type="button"
+      className="copy"
+      aria-label={copied ? "Answer copied" : "Copy answer"}
+      onClick={async () => {
+        try {
+          await navigator.clipboard.writeText(text);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1400);
+        } catch {
+          /* clipboard unavailable (insecure context) — leave the button as-is */
+        }
+      }}
+    >
+      {copied ? "copied" : "copy"}
+    </button>
+  );
+}
+
 function AgentReply({ msg }) {
   const isClarify = msg.category === "clarify-request";
   return (
@@ -50,7 +73,24 @@ function AgentReply({ msg }) {
         <span className="conf">confidence {msg.confidence.toFixed(2)}</span>
         <ConfidenceMeter value={msg.confidence} />
       </div>
-      <div className="agent-body">{msg.text}</div>
+      <div className="agent-body">
+        <ReactMarkdown>{msg.text}</ReactMarkdown>
+      </div>
+      {!isClarify && (
+        <div className="agent-foot">
+          {msg.sources?.length > 0 && (
+            <div className="sources">
+              <span className="sources-label">Sources</span>
+              {msg.sources.map((s) => (
+                <span key={s} className="chip">
+                  {s}
+                </span>
+              ))}
+            </div>
+          )}
+          <CopyButton text={msg.text} />
+        </div>
+      )}
     </div>
   );
 }
@@ -103,6 +143,7 @@ export default function App() {
           text: data.answer,
           category: isClarify ? "clarify-request" : data.category,
           confidence: data.confidence,
+          sources: data.sources ?? [],
         },
       ]);
     } catch {

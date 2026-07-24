@@ -69,6 +69,16 @@ def test_category_boost_is_gone():
     assert not hasattr(app, "CATEGORY_DOCS")
 
 
+def test_sources_are_unique_titles_in_order():
+    context = [
+        {"doc": "02_pricing_billing.md", "title": "Failed Payments", "text": "..."},
+        {"doc": "02_pricing_billing.md", "title": "Failed Payments", "text": "..."},
+        {"doc": "03_account_management.md", "title": "Password Reset", "text": "..."},
+    ]
+    assert app.sources_from_context(context) == ["Failed Payments", "Password Reset"]
+    assert app.sources_from_context([]) == []
+
+
 def test_graph_reports_which_branch_answered():
     graph = app.build_app()
     config = {"configurable": {"thread_id": "test-routing"}}
