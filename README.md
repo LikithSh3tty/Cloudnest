@@ -157,9 +157,19 @@ Response:
 
 Worth a note since it's the core of the thing and there's nothing hidden.
 
-Each doc gets split into sections on its markdown headings. When a question comes in, both the question and every section get tokenized — lowercased, stripped of stopwords, with a small synonym map so a handful of common variants collapse together (`cost`/`costs`/`pricing` → `price`, and so on). Sections are then scored by how many query terms they contain and how often, with a 2× boost for docs that match the routed category. The top few sections above zero become the context, and confidence is roughly the share of your query's terms that the best section covered.
+Each doc gets split into sections on its markdown headings. Every section is embedded once, ahead of time, by a small local model (`all-MiniLM-L6-v2`, an int8 ONNX export — no API key, no per-query cost, runs offline) and the resulting vectors are committed as `backend/index.npz`. When a question comes in, only the question is embedded, and sections are ranked by cosine similarity against it. The top three become the context, and confidence is the similarity of the best one. Because it matches on meaning rather than shared words, "how much will I be charged if I add a teammate mid-cycle" finds the pricing section even though it shares no keywords with it.
 
-If that top score clears `0.30` (a constant near the top of `app.py`, easy to tweak), the responder runs. If it doesn't, you get the clarify prompt instead. It's a blunt heuristic, but it keeps the agent from confidently answering questions the docs don't actually cover.
+If that top score clears `0.30` (a constant near the top of `app.py`, chosen by measuring the gap between in-scope and out-of-scope questions — see `backend/calibrate.py`), the responder runs. If it doesn't, you get the clarify prompt instead. It keeps the agent from confidently answering questions the docs don't actually cover.
+
+If the embedding model or index can't be loaded, retrieval falls back to a keyword scorer (the previous approach — token overlap with a small synonym map), so the app still answers with no model and no API key at all.
+
+### Rebuilding the search index
+
+The section embeddings are generated ahead of time. After editing anything in `backend/cloudnest_docs/`, regenerate the index:
+
+    python backend/build_index.py
+
+Skipping this is safe but degrading: `app.py` fingerprints the docs and, on a mismatch, falls back to keyword retrieval rather than searching outdated vectors. Run `python backend/build_index.py --calibrate` to also re-check the confidence threshold against the new content.
 
 ## Deployment
 
