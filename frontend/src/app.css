@@ -396,6 +396,43 @@ body {
   margin: 16px 0;
 }
 
+.agent-body table {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  margin: 4px 0 12px;
+  font-size: 13.5px;
+}
+
+.agent-body th,
+.agent-body td {
+  border: 1px solid var(--line);
+  padding: 8px 13px;
+  text-align: left;
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+.agent-body th {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  background: var(--surface);
+}
+
+.agent-body td {
+  color: var(--ink-body);
+}
+
+.agent-body tbody tr:nth-child(even) td {
+  background: rgba(255, 255, 255, 0.015);
+}
+
 .agent-body a {
   color: var(--sage);
   text-underline-offset: 2px;

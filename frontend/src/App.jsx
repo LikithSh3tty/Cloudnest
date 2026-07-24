@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 function ChatIcon() {
   return (
@@ -88,7 +89,7 @@ function AgentReply({ msg }) {
           <span className="agent-time">JUST NOW</span>
         </div>
         <div className="agent-body">
-          <ReactMarkdown>{msg.text}</ReactMarkdown>
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.text}</ReactMarkdown>
         </div>
       </div>
     </div>
