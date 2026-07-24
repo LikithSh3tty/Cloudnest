@@ -66,7 +66,7 @@ function ArrowIcon() {
 
 const GUIDANCE = [
   { label: "Free up storage", ask: "How do I free up storage space on CloudNest?" },
-  { label: "Resolve sync issues", ask: "My files aren't syncing on my laptop — how do I fix it?" },
+  { label: "Resolve sync issues", ask: "My files aren't syncing on my laptop. How do I fix it?" },
   { label: "Review plan limits", ask: "What are the storage and device limits on each plan?" },
 ];
 
@@ -199,7 +199,7 @@ export default function App() {
         </nav>
 
         <p className="sidebar-foot">
-          A quieter support experience, designed to keep the answer — not the interface — at
+          A quieter support experience, designed to keep the answer, not the interface, at
           the centre.
         </p>
       </aside>

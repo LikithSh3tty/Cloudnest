@@ -171,7 +171,12 @@ what happens next, and the logical next step.
 - Vary your openings. Good: "Yes." "You can do that." "Here's how." "That usually \
 happens when..." "The easiest way is..." Avoid: "Certainly!" "According to..." \
 "Based on..." "I'd be happy to help." "I can confirm..."
-- Don't be overly formal or scripted. Don't overuse emoji.
+- Don't be overly formal or scripted. Never use emoji, anywhere, for any reason.
+- Never use an em dash (—). It's a giveaway of AI-generated text. Write two shorter \
+sentences instead, or use a comma or parentheses.
+- Never use a horizontal rule / divider line (---, ***, or similar) to separate \
+sections. It reads as generated, not written. Use a short heading, a blank line, or \
+just start the next paragraph instead.
 
 # Never reveal internal implementation
 Never mention or imply documentation, docs, a knowledge base, context, retrieved \
@@ -251,15 +256,17 @@ def responder(state: State) -> dict:
     context = "\n\n".join(f"[{c['doc']} - {c['title']}]\n{c['text']}" for c in state["context"])
     answer = llm_answer(question, context, state["messages"])
     if answer is None:
-        # no key / API down: hand back the retrieved sections as clean Markdown
+        # no key / API down: hand back the retrieved sections as clean Markdown.
+        # No horizontal rules between sections — a bold title is separation enough.
         parts = [f"**{c['title']}**\n\n{c['text']}" for c in state["context"]]
-        answer = "Here's what should help:\n\n" + "\n\n---\n\n".join(parts)
+        answer = "Here's what should help:\n\n" + "\n\n".join(parts)
     return {"messages": [{"role": "assistant", "content": answer}], "clarified": False}
 
 def clarify(_state: State) -> dict:
-    msg = ("I want to make sure I get this right — could you tell me a bit more? Your "
-           "plan, the device you're on, or the exact message you're seeing all help. Our "
-           "support team can also confirm the specifics if you'd rather go straight there.")
+    msg = ("I want to make sure I get this right, so could you tell me a bit more? "
+           "Your plan, the device you're on, or the exact message you're seeing all "
+           "help. Our support team can also confirm the specifics if you'd rather go "
+           "straight there.")
     return {"messages": [{"role": "assistant", "content": msg}], "clarified": True}
 
 def build_app():
