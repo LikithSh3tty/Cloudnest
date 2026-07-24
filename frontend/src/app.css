@@ -270,7 +270,6 @@ body {
 }
 
 .hero-title {
-  margin-top: 16px;
   font-family: "Newsreader", Georgia, serif;
   font-weight: 500;
   font-size: 45px;
@@ -644,27 +643,6 @@ body {
 .ctx-link:focus-visible {
   outline: 2px solid var(--sage-dim);
   outline-offset: 2px;
-}
-
-.ctx-card {
-  margin-top: 30px;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 16px 17px;
-}
-
-.ctx-card-title {
-  font-weight: 600;
-  font-size: 14px;
-  color: var(--ink);
-  margin-bottom: 7px;
-}
-
-.ctx-card-text {
-  font-size: 12.5px;
-  line-height: 1.6;
-  color: var(--ink-soft);
 }
 
 /* ---- motion ---- */

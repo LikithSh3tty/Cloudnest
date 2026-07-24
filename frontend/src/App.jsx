@@ -70,13 +70,6 @@ const GUIDANCE = [
   { label: "Review plan limits", ask: "What are the storage and device limits on each plan?" },
 ];
 
-function greeting() {
-  const h = new Date().getHours();
-  if (h < 12) return "Good morning";
-  if (h < 18) return "Good afternoon";
-  return "Good evening";
-}
-
 function AgentReply({ msg }) {
   return (
     <div className="agent">
@@ -227,7 +220,6 @@ export default function App() {
 
         <div className="main-scroll" ref={scrollRef}>
           <header className="hero">
-            <span className="eyebrow">{greeting()}</span>
             <h1 className="hero-title">
               Clear answers for <em>your cloud.</em>
             </h1>
@@ -298,14 +290,6 @@ export default function App() {
               </button>
             ))}
           </div>
-        </div>
-
-        <div className="ctx-card">
-          <p className="ctx-card-title">Designed for calm</p>
-          <p className="ctx-card-text">
-            No gradients, mascot language, fake metrics, or overloaded cards. The interface
-            earns its premium feel through restraint and careful hierarchy.
-          </p>
         </div>
       </aside>
     </div>
