@@ -186,6 +186,10 @@ body {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  /* one shared horizontal inset for the bar, the scroll area, and the
+     composer, so max-width + margin: auto centers all three identically —
+     giving each its own padding let them drift out of alignment */
+  padding: 0 44px;
 }
 
 .main-bar {
@@ -193,7 +197,7 @@ body {
   align-items: flex-start;
   justify-content: space-between;
   gap: 20px;
-  padding: 24px 44px 20px;
+  padding: 24px 0 20px;
 }
 
 .main-title {
@@ -230,7 +234,7 @@ body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 14px 44px 20px;
+  padding: 14px 0 20px;
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
   scrollbar-gutter: stable;
@@ -708,14 +712,8 @@ body {
   .sidebar {
     display: none;
   }
-  .main-bar,
-  .main-scroll {
-    padding-left: 22px;
-    padding-right: 22px;
-  }
-  .composer {
-    margin-left: 22px;
-    margin-right: 22px;
+  .main {
+    padding: 0 22px;
   }
   .hero-title {
     font-size: 34px;
