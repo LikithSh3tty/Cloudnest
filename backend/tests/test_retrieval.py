@@ -53,6 +53,12 @@ def test_stale_index_is_rejected(monkeypatch, tmp_path):
     assert app.load_index() is None
 
 
+def test_index_from_a_different_model_is_rejected(monkeypatch):
+    """Vectors built by another model must not be searched against new queries."""
+    monkeypatch.setattr(app, "MODEL_ID", "some-other-model.onnx")
+    assert app.load_index() is None
+
+
 def test_lexical_retrieve_still_works():
     result = app.lexical_retrieve("refund policy")
     assert result["context"]
@@ -76,4 +82,24 @@ def test_graph_reports_which_branch_answered():
         {"messages": [{"role": "user", "content": "how do I get a refund"}]},
         {"configurable": {"thread_id": "test-routing-2"}},
     )
+    assert result["clarified"] is False
+
+
+def test_fully_degraded_path_answers_through_the_graph(monkeypatch):
+    """No model, no index, no API key: the graph must still answer.
+
+    This is the feature's headline offline guarantee. The two halves (lexical
+    fallback, and graph routing) are tested separately elsewhere; this drives
+    the whole compiled flow with retrieval degraded to the keyword scorer.
+    """
+    monkeypatch.setattr(app, "embed", None)
+    monkeypatch.setattr(app, "INDEX", None)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    graph = app.build_app()
+    result = graph.invoke(
+        {"messages": [{"role": "user", "content": "how do I get a refund"}]},
+        {"configurable": {"thread_id": "test-degraded"}},
+    )
+    answer = result["messages"][-1]["content"]
+    assert answer  # extractive fallback produced text
     assert result["clarified"] is False

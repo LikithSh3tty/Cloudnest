@@ -68,18 +68,26 @@ CHUNKS = load_chunks()
 # Guarded so a missing model or index degrades to lexical retrieval instead of
 # breaking import. The app must still answer with neither model nor API key.
 try:
-    from embed import embed
+    from embed import MODEL_ID, embed
 except Exception as exc:
     print(f"embed unavailable: {type(exc).__name__}")
     embed = None
 
 
 def load_index():
-    """Return (vectors, meta), or None if absent, unreadable, or stale."""
+    """Return (vectors, meta), or None if absent, unreadable, or stale.
+
+    Rejects the index if either the docs or the embedding model changed since
+    it was built — vectors built by one model are meaningless against queries
+    embedded by another, and cosine scores would silently misroute.
+    """
     try:
         data = np.load(INDEX_PATH, allow_pickle=False)
         if data["docs_hash"].item() != docs_hash():
             print("index is stale: re-run backend/build_index.py")
+            return None
+        if data["model_id"].item() != MODEL_ID:
+            print("index built by a different model: re-run backend/build_index.py")
             return None
         return data["vectors"], json.loads(data["meta"].item())
     except Exception as exc:
