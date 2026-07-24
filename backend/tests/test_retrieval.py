@@ -17,6 +17,22 @@ def test_semantic_retrieval_finds_billing_docs_without_shared_tokens():
     assert result["confidence"] > 0.0
 
 
+def test_multi_section_query_surfaces_the_storage_section():
+    """Regression: a trash/space/sync question needs both the Trash-recovery and
+    the Storage-Full sections to answer correctly, but Storage Full ranks ~5th.
+    The old top-3 slice dropped it and the bot wrongly said the docs didn't cover
+    whether emptying Trash frees space. TOP_K must be wide enough to include it.
+    """
+    r = app.retriever({
+        "messages": [{"role": "user", "content":
+            "if my sync stopped because storage is full, does emptying the trash help it resume"}],
+        "category": "technical",
+    })
+    titles = [c["title"] for c in r["context"]]
+    assert any("Storage Full" in t for t in titles), titles
+    assert len(r["context"]) <= app.TOP_K
+
+
 def test_out_of_scope_question_scores_below_in_scope():
     def confidence(question):
         return app.retriever({

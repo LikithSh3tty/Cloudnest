@@ -23,8 +23,10 @@ def chat(body: ChatIn):
     messages = body.history + [{"role": "user", "content": body.message}]
     config = {"configurable": {"thread_id": uuid4().hex}}
     result = graph.invoke({"messages": messages}, config)
-    # no sources on a clarify: the retrieved chunks were below the confidence bar
-    sources = [] if result["clarified"] else sources_from_context(result["context"])
+    # Retrieve wide for the LLM but cite narrow: show only the 3 best-ranked
+    # sections as chips, so extra recall doesn't clutter the UI with sections
+    # the answer barely touched. No sources on a clarify (chunks were sub-threshold).
+    sources = [] if result["clarified"] else sources_from_context(result["context"])[:3]
     return {"answer": result["messages"][-1]["content"],
             "category": result["category"],
             "confidence": result["confidence"],

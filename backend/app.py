@@ -18,6 +18,10 @@ if ENV_FILE.exists():
 DOCS_DIR = Path(__file__).resolve().parent / "cloudnest_docs"
 # cosine similarity, chosen from backend/calibrate.py output
 CONFIDENCE_THRESHOLD = 0.30
+# sections sent to the LLM. Wider than it looks necessary because an answer can
+# span two sections (e.g. Trash recovery + Storage Full quota) that don't both
+# rank in the top 3 under a small embedding model.
+TOP_K = 5
 BILLING_WORDS = {
     "price", "pricing", "plan", "plans", "pay", "payment", "bill", "billing",
     "invoice", "refund", "subscription", "upgrade", "downgrade", "charge",
@@ -125,7 +129,7 @@ def lexical_retrieve(question: str) -> dict:
         matched = {t for t in terms if t in chunk_terms}
         scored.append((sum(chunk_terms.count(t) for t in matched), len(matched), chunk))
     scored.sort(key=lambda s: (-s[0], s[2]["doc"]))
-    top = [c for score, _, c in scored[:3] if score > 0]
+    top = [c for score, _, c in scored[:TOP_K] if score > 0]
     confidence = scored[0][1] / len(terms) if terms and scored else 0.0
     return {"context": top, "confidence": confidence}
 
@@ -138,7 +142,7 @@ def retriever(state: State) -> dict:
         vectors, meta = INDEX
         # rows and the query are both L2-normalized, so this dot product is cosine
         scores = vectors @ embed([question])[0]
-        top = np.argsort(-scores)[:3]
+        top = np.argsort(-scores)[:TOP_K]
         return {
             "context": [meta[i] for i in top],
             "confidence": float(scores[top[0]]),
