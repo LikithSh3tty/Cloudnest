@@ -34,14 +34,6 @@ function SendIcon() {
   );
 }
 
-function ConfidenceMeter({ value }) {
-  return (
-    <span className="meter" role="img" aria-label={`confidence ${value.toFixed(2)}`}>
-      <span className="meter-fill" style={{ width: `${Math.min(value, 1) * 100}%` }} />
-    </span>
-  );
-}
-
 function CopyButton({ text }) {
   const [copied, setCopied] = useState(false);
   return (
@@ -65,29 +57,13 @@ function CopyButton({ text }) {
 }
 
 function AgentReply({ msg }) {
-  const isClarify = msg.category === "clarify-request";
   return (
-    <div className={`agent ${isClarify ? "agent-clarify" : ""}`}>
-      <div className="agent-meta">
-        <span className="route">{msg.category}</span>
-        <span className="conf">confidence {msg.confidence.toFixed(2)}</span>
-        <ConfidenceMeter value={msg.confidence} />
-      </div>
+    <div className={`agent ${msg.clarified ? "agent-clarify" : ""}`}>
       <div className="agent-body">
         <ReactMarkdown>{msg.text}</ReactMarkdown>
       </div>
-      {!isClarify && (
+      {!msg.clarified && (
         <div className="agent-foot">
-          {msg.sources?.length > 0 && (
-            <div className="sources">
-              <span className="sources-label">Sources</span>
-              {msg.sources.map((s) => (
-                <span key={s} className="chip">
-                  {s}
-                </span>
-              ))}
-            </div>
-          )}
           <CopyButton text={msg.text} />
         </div>
       )}
@@ -135,16 +111,11 @@ export default function App() {
       });
       if (!res.ok) throw new Error(`server returned ${res.status}`);
       const data = await res.json();
-      const isClarify = data.clarified; // the graph reports which branch it took
+      // category/confidence/sources still come back for logs, but we don't
+      // surface retrieval internals in the UI — only the answer and its tone.
       setMessages((m) => [
         ...m,
-        {
-          role: "agent",
-          text: data.answer,
-          category: isClarify ? "clarify-request" : data.category,
-          confidence: data.confidence,
-          sources: data.sources ?? [],
-        },
+        { role: "agent", text: data.answer, clarified: data.clarified },
       ]);
     } catch {
       setError("Can't reach the support service. Check that the server is running on port 8000.");
