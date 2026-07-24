@@ -225,7 +225,7 @@ export default function App() {
           )}
         </div>
 
-        <div className={`main-scroll ${empty ? "is-empty" : ""}`} ref={scrollRef}>
+        <div className="main-scroll" ref={scrollRef}>
           <header className="hero">
             <span className="eyebrow">{greeting()}</span>
             <h1 className="hero-title">

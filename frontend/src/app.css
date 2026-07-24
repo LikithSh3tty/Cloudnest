@@ -240,14 +240,6 @@ body {
   scrollbar-gutter: stable;
 }
 
-/* before the first message, centre the greeting in the available space
-   instead of pinning it to the top with a void underneath */
-.main-scroll.is-empty {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-}
-
 .main-scroll::-webkit-scrollbar {
   width: 8px;
 }
@@ -271,6 +263,7 @@ body {
 /* ---- hero ---- */
 
 .hero {
+  width: 100%;
   max-width: var(--content);
   margin: 0 auto;
   padding: 18px 0 6px;
@@ -300,6 +293,7 @@ body {
 /* ---- conversation ---- */
 
 .conversation {
+  width: 100%;
   max-width: var(--content);
   margin: 0 auto;
   display: flex;
@@ -505,7 +499,9 @@ body {
 .composer {
   display: flex;
   align-items: center;
+  align-self: stretch;
   gap: 10px;
+  width: 100%;
   max-width: var(--content);
   margin: 6px auto 26px;
   padding: 9px 9px 9px 18px;
