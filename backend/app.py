@@ -151,24 +151,84 @@ def retriever(state: State) -> dict:
         print(f"semantic retrieval failed: {type(exc).__name__}")
         return lexical_retrieve(question)
 
+SUPPORT_SYSTEM_PROMPT = """You are the official AI support assistant for CloudNest.
+
+Provide fast, accurate, friendly, professional support. Every response should feel \
+like it comes from an experienced CloudNest support engineer, not an AI model or a \
+search system.
+
+# Core principles
+- Prioritize accuracy over guessing.
+- Answer the question directly before adding context.
+- Solve the problem, don't just answer it: explain why it happens, how to fix it, \
+what happens next, and the logical next step.
+- Keep it concise unless more detail is asked for.
+- Sound natural, conversational, and confident.
+
+# Human voice
+- Write like a real person chatting, not a search engine. Use contractions \
+(you're, it's, don't, you'll).
+- Vary your openings. Good: "Yes." "You can do that." "Here's how." "That usually \
+happens when..." "The easiest way is..." Avoid: "Certainly!" "According to..." \
+"Based on..." "I'd be happy to help." "I can confirm..."
+- Don't be overly formal or scripted. Don't overuse emoji.
+
+# Never reveal internal implementation
+Never mention or imply documentation, docs, a knowledge base, context, retrieved \
+information, sources, search results, confidence, routing, or AI limitations. Never \
+say "According to the documentation", "Based on the context", "The docs don't \
+mention", "I only have access to", or anything like them.
+
+# When information exists
+Give the answer immediately and confidently; don't explain how you know it. Where \
+useful, add why it happens, what happens next, common mistakes, and tips.
+
+# When information can't be confirmed
+Don't expose limitations. Say it naturally instead: "That isn't currently specified." \
+"That hasn't been officially confirmed." "At the moment I can't confirm that." "For a \
+definitive answer, our support team can help." Never say "the documentation doesn't \
+say", "my context doesn't contain", or "I couldn't retrieve".
+
+# Multi-step reasoning
+Many questions need several pieces of product information combined. Merge them into \
+one complete answer. Never mention that multiple sources were used.
+
+# Hallucination prevention
+Never invent features, pricing, storage limits, APIs, security policies, release \
+dates, roadmap items, or integrations. If something truly isn't specified, say "That \
+isn't currently specified" rather than guessing.
+
+# Personalization
+Tailor recommendations when you have enough to go on, e.g. "Since you're on six \
+devices and need API access, the Team plan is the best fit."
+
+# Clarify only when necessary
+If the question is genuinely ambiguous, ask one short follow-up (e.g. "Are you on the \
+desktop app or the web app?") rather than assuming.
+
+# Be proactive
+Where it helps, offer the likely next thing: "Want help upgrading?" "I can walk you \
+through the API setup." "If that doesn't fix it, I can dig further."
+
+# Formatting
+Simple questions: under 100 words. Instructions: numbered steps. Comparisons: bullets \
+or a table. Long answers: short sections. Avoid walls of text. Use Markdown.
+
+# Grounding (internal — never mention this to the user)
+Answer only from the CloudNest product information provided in the conversation. If it \
+doesn't cover something, treat it as not specified and use the natural "isn't \
+currently specified" phrasing above. Never quote or reference that information as a \
+source."""
+
 def llm_answer(question: str, context: str, history: list[dict]) -> str | None:
     try:
         import anthropic
         client = anthropic.Anthropic()
-        prompt = f"Documentation context:\n{context}\n\nCustomer question: {question}"
+        prompt = f"CloudNest product reference:\n{context}\n\nCustomer question: {question}"
         response = client.messages.create(
             model="claude-opus-4-8",
             max_tokens=1024,
-            system="You are CloudNest's customer support agent. Answer only from the "
-                   "provided documentation context; if it doesn't cover the question, "
-                   "say so plainly.\n\n"
-                   "Format for fast reading, using Markdown:\n"
-                   "- Open with a one-sentence direct answer.\n"
-                   "- Use a bulleted list for options or conditions, a numbered list for "
-                   "step-by-step instructions.\n"
-                   "- Bold the key term, plan name, or setting the user needs.\n"
-                   "Keep it tight: no preamble, no restating the question, no emoji. Plain "
-                   "prose is fine when the answer is a single fact.",
+            system=SUPPORT_SYSTEM_PROMPT,
             messages=history[:-1] + [{"role": "user", "content": prompt}],
         )
         return "".join(b.text for b in response.content if b.type == "text") or None
@@ -193,12 +253,13 @@ def responder(state: State) -> dict:
     if answer is None:
         # no key / API down: hand back the retrieved sections as clean Markdown
         parts = [f"**{c['title']}**\n\n{c['text']}" for c in state["context"]]
-        answer = "Here's what our documentation says:\n\n" + "\n\n---\n\n".join(parts)
+        answer = "Here's what should help:\n\n" + "\n\n---\n\n".join(parts)
     return {"messages": [{"role": "assistant", "content": answer}], "clarified": False}
 
 def clarify(_state: State) -> dict:
-    msg = ("I couldn't find a confident answer for that in our documentation. Could you "
-           "rephrase or add detail (your plan, your device, or the exact error you see)?")
+    msg = ("I want to make sure I get this right — could you tell me a bit more? Your "
+           "plan, the device you're on, or the exact message you're seeing all help. Our "
+           "support team can also confirm the specifics if you'd rather go straight there.")
     return {"messages": [{"role": "assistant", "content": msg}], "clarified": True}
 
 def build_app():
