@@ -76,28 +76,6 @@ const EXAMPLES = [
   { label: "Which plans include API access?", hint: "For developers", icon: <CodeIcon /> },
 ];
 
-function CopyButton({ text }) {
-  const [copied, setCopied] = useState(false);
-  return (
-    <button
-      type="button"
-      className="copy"
-      aria-label={copied ? "Answer copied" : "Copy answer"}
-      onClick={async () => {
-        try {
-          await navigator.clipboard.writeText(text);
-          setCopied(true);
-          setTimeout(() => setCopied(false), 1400);
-        } catch {
-          /* clipboard unavailable (insecure context) — leave the button as-is */
-        }
-      }}
-    >
-      {copied ? "Copied" : "Copy"}
-    </button>
-  );
-}
-
 function AgentReply({ msg }) {
   return (
     <div className={`agent ${msg.clarified ? "is-clarify" : ""}`}>
@@ -108,11 +86,6 @@ function AgentReply({ msg }) {
         <div className="agent-body">
           <ReactMarkdown>{msg.text}</ReactMarkdown>
         </div>
-        {!msg.clarified && (
-          <div className="agent-foot">
-            <CopyButton text={msg.text} />
-          </div>
-        )}
       </div>
     </div>
   );

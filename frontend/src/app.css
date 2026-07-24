@@ -137,6 +137,30 @@ body::before {
   display: flex;
   flex-direction: column;
   gap: 20px;
+  /* keep the OS scrollbar from clashing with the glass theme */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(120, 150, 200, 0.35) transparent;
+  scrollbar-gutter: stable;
+}
+
+.thread::-webkit-scrollbar {
+  width: 8px;
+}
+
+.thread::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.thread::-webkit-scrollbar-thumb {
+  background: rgba(120, 150, 200, 0.32);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.thread::-webkit-scrollbar-thumb:hover {
+  background: rgba(120, 150, 200, 0.55);
+  background-clip: padding-box;
 }
 
 .thread.is-empty {
@@ -357,29 +381,6 @@ body::before {
 .agent-body a {
   color: var(--cobalt);
   text-underline-offset: 2px;
-}
-
-.agent-foot {
-  margin-top: 11px;
-}
-
-.copy {
-  font-family: "IBM Plex Mono", monospace;
-  font-size: 11px;
-  letter-spacing: 0.03em;
-  color: var(--ink-faint);
-  background: none;
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  padding: 3px 10px;
-  cursor: pointer;
-  transition: color 140ms ease, border-color 140ms ease, background 140ms ease;
-}
-
-.copy:hover {
-  color: var(--cobalt);
-  border-color: rgba(79, 134, 242, 0.45);
-  background: rgba(79, 134, 242, 0.06);
 }
 
 /* ---- typing indicator ---- */
