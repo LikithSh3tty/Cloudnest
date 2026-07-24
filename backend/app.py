@@ -1,3 +1,4 @@
+import hashlib
 import os
 import re
 from operator import add
@@ -52,6 +53,16 @@ def load_chunks() -> list[dict]:
             title = section.strip().splitlines()[0].lstrip("# ").strip()
             chunks.append({"doc": doc.name, "title": title, "text": section.strip()})
     return chunks
+
+INDEX_PATH = Path(__file__).resolve().parent / "index.npz"
+
+
+def docs_hash() -> str:
+    """Fingerprint the corpus so a stale index can be detected at load time."""
+    digest = hashlib.sha256()
+    for doc in sorted(DOCS_DIR.glob("*.md")):
+        digest.update(doc.read_bytes())
+    return digest.hexdigest()
 
 CHUNKS = load_chunks()
 
