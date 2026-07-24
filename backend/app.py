@@ -96,8 +96,10 @@ def llm_answer(question: str, context: str, history: list[dict]) -> str | None:
             messages=history[:-1] + [{"role": "user", "content": prompt}],
         )
         return "".join(b.text for b in response.content if b.type == "text") or None
-    except Exception:
-        return None  # no credentials / network — extractive fallback answers
+    except Exception as e:
+        # log only the exception type: messages/reprs can embed secrets (e.g. API keys)
+        print(f"llm_answer failed: {type(e).__name__}")
+        return None
 
 def responder(state: State) -> dict:
     question = state["messages"][-1]["content"]
