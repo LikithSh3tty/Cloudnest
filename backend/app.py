@@ -65,16 +65,25 @@ def docs_hash() -> str:
     return digest.hexdigest()
 
 CHUNKS = load_chunks()
-# Sections sent to the LLM for grounding. Set to the whole corpus rather than a
-# fixed cutoff: a query can legitimately need facts from many sections at once
-# (e.g. "I need API access, EU residency, bank transfer, and CLI automation" -
-# 4 sections, 2 of them ranked outside any small top-N), and at ~1,800 tokens
-# for all of CHUNKS combined, sending everything costs nothing meaningful. This
-# does not affect CONFIDENCE_THRESHOLD routing (still the single top score) or
-# citations (still capped separately, see sources_from_context in index.py) -
-# only how much context an already-confident answer gets to draw from. Revisit
-# if the corpus grows enough that "everything" stops being cheap.
-TOP_K = len(CHUNKS)
+# Sections sent to the LLM for grounding. Below SMALL_CORPUS_LIMIT we retrieve
+# everything rather than slicing to a fixed cutoff: a query can legitimately
+# need facts from many sections at once (e.g. "I need API access, EU
+# residency, bank transfer, and CLI automation" - 4 sections, 2 of them ranked
+# outside any small top-N), and at ~1,800 tokens for all 46 of today's CHUNKS,
+# sending everything costs nothing meaningful. This does not affect
+# CONFIDENCE_THRESHOLD routing (still the single top score) or citations
+# (still capped separately, see sources_from_context in index.py) - only how
+# much context an already-confident answer gets to draw from.
+#
+# Past SMALL_CORPUS_LIMIT, "send everything" stops being free, so TOP_K falls
+# back to a fixed cutoff. FALLBACK_TOP_K is an unvalidated placeholder, not a
+# tuned value - a fixed cutoff is the same shape of bug this file just fixed
+# (see the regression test for the rank-10/rank-22 failure), so recalibrate it
+# against real questions (backend/calibrate.py) before this branch ever runs,
+# rather than trusting the number below.
+SMALL_CORPUS_LIMIT = 150
+FALLBACK_TOP_K = 15
+TOP_K = len(CHUNKS) if len(CHUNKS) <= SMALL_CORPUS_LIMIT else FALLBACK_TOP_K
 
 # Guarded so a missing model or index degrades to lexical retrieval instead of
 # breaking import. The app must still answer with neither model nor API key.
