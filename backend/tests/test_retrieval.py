@@ -275,3 +275,18 @@ def test_fuse_falls_back_to_lexical_confidence_when_degraded():
     fused = app.fuse_results(semantic, lexical)
     assert fused["confidence"] == 0.8          # degraded mode keeps answering
     assert fused["context"]                    # lexical ranking carries context
+
+
+def test_extractive_fallback_caps_sections(monkeypatch):
+    """No-API-key fallback must show only the top few sections, not all 46.
+    context stays the full corpus (for the LLM/citations); only the extractive
+    print is bounded.
+    """
+    monkeypatch.setattr(app, "llm_answer", lambda *a, **k: None)  # force extractive branch
+    fake = [{"doc": "d", "title": f"S{i}", "text": f"body{i}"} for i in range(46)]
+    state = {"messages": [{"role": "user", "content": "x"}], "context": fake}
+    out = app.responder(state)
+    answer = out["messages"][-1]["content"]
+    shown = [i for i in range(46) if f"S{i}" in answer]
+    assert len(shown) <= app.EXTRACTIVE_SECTIONS
+    assert len(shown) >= 1

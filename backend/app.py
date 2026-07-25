@@ -84,6 +84,10 @@ CHUNKS = load_chunks()
 SMALL_CORPUS_LIMIT = 150
 FALLBACK_TOP_K = 15
 TOP_K = len(CHUNKS) if len(CHUNKS) <= SMALL_CORPUS_LIMIT else FALLBACK_TOP_K
+# The no-API-key fallback prints retrieved sections as Markdown; cap it at the
+# top few fused-relevance sections so it never dumps the whole corpus. The LLM
+# path (with a key) still receives all of context - this bounds presentation only.
+EXTRACTIVE_SECTIONS = 3
 
 # Guarded so a missing model or index degrades to lexical retrieval instead of
 # breaking import. The app must still answer with neither model nor API key.
@@ -352,7 +356,7 @@ def responder(state: State) -> dict:
     if answer is None:
         # no key / API down: hand back the retrieved sections as clean Markdown.
         # No horizontal rules between sections — a bold title is separation enough.
-        parts = [f"**{c['title']}**\n\n{c['text']}" for c in state["context"]]
+        parts = [f"**{c['title']}**\n\n{c['text']}" for c in state["context"][:EXTRACTIVE_SECTIONS]]
         answer = "Here's what should help:\n\n" + "\n\n".join(parts)
     return {"messages": [{"role": "assistant", "content": answer}], "clarified": False}
 
