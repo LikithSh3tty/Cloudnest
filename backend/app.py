@@ -22,13 +22,26 @@ DOCS_DIR = Path(__file__).resolve().parent.parent / "cloudnest_docs"
 CONFIDENCE_THRESHOLD = 0.30
 ESCALATE_FLOOR = 0.27  # just above the measured out-of-scope ceiling (0.265);
                        # below this a question is off-topic noise and never tickets
-# Single whole-word triggers only (matched on word boundaries, so "personal"
-# won't hit "person"). Deliberately excludes common words like "someone"/"rep"
-# that appear in ordinary questions ("can someone tell me the price"), to keep
-# escalation from firing on non-requests.
-HUMAN_REQUEST_WORDS = {
-    "human", "agent", "person", "representative", "ticket", "escalate",
-}
+                       # In fully-degraded (no-index) mode confidence is the
+                       # lexical matched-terms ratio from lexical_retrieve, not
+                       # a cosine similarity, so this floor - like
+                       # CONFIDENCE_THRESHOLD - is only approximately
+                       # meaningful on that path.
+# Explicit human-handoff requests, matched as phrases rather than bare words so
+# an ordinary question that merely contains "person" or "ticket" ("am I the only
+# person seeing this", "how do I check my ticket status") is still answered, while
+# a real request ("let me talk to a person", "get me an agent") hands off.
+HUMAN_REQUEST_PHRASES = (
+    "talk to a human", "talk to a person", "talk to someone", "talk to an agent",
+    "talk to a representative", "talk to a rep",
+    "speak to a human", "speak to a person", "speak to someone", "speak to an agent",
+    "speak to a representative",
+    "let me talk to", "let me speak to",
+    "get me a human", "get me an agent", "get me a person", "get me someone",
+    "real person", "real human", "human agent", "live agent",
+    "raise a ticket", "open a ticket", "create a support ticket",
+    "escalate this", "escalate to",
+)
 CLARIFY_BORDERLINE_MSG = (
     "I want to make sure I get this right, so could you tell me a bit more? "
     "Your plan, the device you're on, or the exact message you're seeing all "
@@ -106,10 +119,12 @@ CHUNKS = load_chunks()
 SMALL_CORPUS_LIMIT = 150
 FALLBACK_TOP_K = 15
 TOP_K = len(CHUNKS) if len(CHUNKS) <= SMALL_CORPUS_LIMIT else FALLBACK_TOP_K
-# The no-API-key fallback prints retrieved sections as Markdown; cap it at the
-# top few fused-relevance sections so it never dumps the whole corpus. The LLM
-# path (with a key) still receives all of context - this bounds presentation only.
-EXTRACTIVE_SECTIONS = 3
+# The no-API-key fallback prints retrieved sections as Markdown; cap it so it
+# never dumps the whole corpus. 5 covers the documented multi-fact worst case
+# (a question spanning ~4 sections) while still bounding the offline answer. The
+# LLM path (with a key) still receives all of context - this bounds presentation
+# only.
+EXTRACTIVE_SECTIONS = 5
 
 # Guarded so a missing model or index degrades to lexical retrieval instead of
 # breaking import. The app must still answer with neither model nor API key.
@@ -172,9 +187,13 @@ def contextualize_query(messages: list[dict]) -> str:
     return current
 
 def _explicit_human_request(text: str) -> bool:
-    """True when the user directly asks for a human handoff."""
-    words = set(re.findall(r"[a-z']+", text.lower()))
-    return bool(words & HUMAN_REQUEST_WORDS)
+    """True when the user directly asks to be handed to a human.
+
+    Matches request phrases, not bare words, so "the only person" or "ticket
+    status" stay answerable while "talk to a person" / "get me an agent" escalate.
+    """
+    t = text.lower()
+    return any(phrase in t for phrase in HUMAN_REQUEST_PHRASES)
 
 def router(state: State) -> dict:
     words = set(tokenize(contextualize_query(state["messages"])))

@@ -354,9 +354,6 @@ def test_repeated_borderline_miss_escalates():
     # Force the borderline band deterministically, independent of the corpus.
     import app as _app
 
-    def fake_fusion(state):
-        return {"context": [], "confidence": 0.28, "lexical_rescue": False}
-
     graph_state = [
         {"role": "user", "content": "something vaguely about my plan tier"},
         {"role": "assistant", "content": _app.CLARIFY_BORDERLINE_MSG},
@@ -394,3 +391,14 @@ def test_escalated_result_carries_ticket_and_no_sources():
     sources = [] if (result["clarified"] or result["escalate"]) else \
         app.sources_from_context(result["context"])[:3]
     assert sources == []
+
+
+def test_ordinary_question_with_person_or_ticket_word_is_not_escalated():
+    """Words like 'person'/'ticket' inside an ordinary question must not escalate;
+    only real handoff phrases do. Regression for the final-review finding.
+    """
+    ask = lambda q: app.picker_for_test(0.5, [{"role": "user", "content": q}], False)
+    assert ask("am I the only person seeing this") == "responder"
+    assert ask("how do I check my ticket status") == "responder"
+    # a genuine request still escalates
+    assert ask("let me talk to a person") == "escalate"
