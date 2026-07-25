@@ -71,15 +71,15 @@ Alliedworks/
 │   ├── model/                # vendored int8 embedding model + tokenizer
 │   ├── tests/                # pytest suite (19 tests)
 │   ├── requirements.txt
-│   ├── requirements-dev.txt  # requirements.txt + pytest
-│   └── cloudnest_docs/      # the knowledge base — plain markdown
-│       ├── 01_product_overview.md
-│       ├── 02_pricing_billing.md
-│       ├── 03_account_management.md
-│       ├── 04_technical_setup.md
-│       ├── 05_troubleshooting.md
-│       ├── 06_security_privacy.md
-│       └── 07_general_faq.md
+│   └── requirements-dev.txt  # requirements.txt + pytest
+├── cloudnest_docs/          # the knowledge base — plain markdown
+│   ├── 01_product_overview.md
+│   ├── 02_pricing_billing.md
+│   ├── 03_account_management.md
+│   ├── 04_technical_setup.md
+│   ├── 05_troubleshooting.md
+│   ├── 06_security_privacy.md
+│   └── 07_general_faq.md
 ├── frontend/
 │   ├── src/
 │   │   ├── App.jsx          # the chat UI
@@ -182,7 +182,7 @@ If the embedding model or index can't be loaded, retrieval falls back to a keywo
 
 ### Rebuilding the search index
 
-The section embeddings are generated ahead of time. After editing anything in `backend/cloudnest_docs/`, regenerate the index:
+The section embeddings are generated ahead of time. After editing anything in `cloudnest_docs/`, regenerate the index:
 
     python backend/build_index.py
 

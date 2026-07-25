@@ -15,7 +15,7 @@ if ENV_FILE.exists():
         _key, _, _value = _line.partition("=")
         if _key.strip() and not _line.lstrip().startswith("#"):
             os.environ.setdefault(_key.strip(), _value.strip())
-DOCS_DIR = Path(__file__).resolve().parent / "cloudnest_docs"
+DOCS_DIR = Path(__file__).resolve().parent.parent / "cloudnest_docs"
 # cosine similarity, chosen from backend/calibrate.py output
 CONFIDENCE_THRESHOLD = 0.30
 # sections sent to the LLM. Wider than it looks necessary because an answer can
