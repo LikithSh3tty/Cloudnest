@@ -27,24 +27,17 @@ ESCALATE_FLOOR = 0.27  # just above the measured out-of-scope ceiling (0.265);
                        # a cosine similarity, so this floor - like
                        # CONFIDENCE_THRESHOLD - is only approximately
                        # meaningful on that path.
-# Explicit human-handoff requests, matched as phrases rather than bare words so
-# an ordinary question that merely contains "person" or "ticket" ("am I the only
-# person seeing this", "how do I check my ticket status") is still answered, while
-# a real request ("let me talk to a person", "get me an agent") hands off.
-HUMAN_REQUEST_PHRASES = (
-    "talk to a human", "talk to a person", "talk to someone", "talk to an agent",
-    "talk to a representative", "talk to a rep",
-    "speak to a human", "speak to a person", "speak to someone", "speak to an agent",
-    "speak to a representative",
-    "let me talk to", "let me speak to",
-    "get me a human", "get me an agent", "get me a person", "get me someone",
-    "real person", "real human", "human agent", "live agent",
-    "raise a ticket", "open a ticket", "create a support ticket",
-    "escalate this", "escalate to",
-    "connect me to", "put me through", "transfer me to",
-    "speak with a human", "speak with a person", "speak with an agent",
-    "speak with a representative", "talk with a human", "talk with a person",
-)
+# Human-handoff detection. Exact-phrase matching kept missing natural variants
+# ("connect to human" vs "connect me to a representative"), so this looks for the
+# intent instead: a word meaning "a human" together with a word meaning "hand me
+# over". Ordinary questions that merely contain "person"/"someone" but no handoff
+# verb ("am I the only person seeing this") stay answerable.
+HUMAN_NOUNS_STRONG = {"human", "agent", "representative", "rep", "operator", "advisor"}
+HUMAN_NOUNS = HUMAN_NOUNS_STRONG | {"person", "someone", "somebody"}
+HANDOFF_VERBS = {
+    "connect", "talk", "speak", "transfer", "reach", "chat", "call",
+    "get", "put", "want", "need",
+}
 CLARIFY_BORDERLINE_MSG = (
     "I want to make sure I get this right, so could you tell me a bit more? "
     "Your plan, the device you're on, or the exact message you're seeing all "
@@ -196,13 +189,23 @@ def contextualize_query(messages: list[dict]) -> str:
     return current
 
 def _explicit_human_request(text: str) -> bool:
-    """True when the user directly asks to be handed to a human.
+    """True when the user is asking to be handed to a human.
 
-    Matches request phrases, not bare words, so "the only person" or "ticket
-    status" stay answerable while "talk to a person" / "get me an agent" escalate.
+    Detects the intent rather than fixed phrases: "escalate", or a human-noun
+    ("agent"/"person"/...) alongside a handoff verb ("connect"/"talk"/...), or
+    with "real"/"live" ("real person"), or a strong human-noun standing nearly
+    alone ("agent", "human please"). A human-noun with no handoff cue stays
+    answerable, so "am I the only person seeing this" is not a request.
     """
-    t = text.lower()
-    return any(phrase in t for phrase in HUMAN_REQUEST_PHRASES)
+    words = set(re.findall(r"[a-z]+", text.lower()))
+    if "escalate" in words:
+        return True
+    human = words & HUMAN_NOUNS
+    if human and (words & HANDOFF_VERBS or words & {"real", "live", "actual"}):
+        return True
+    if (words & HUMAN_NOUNS_STRONG) and len(words) <= 3:
+        return True
+    return False
 
 def router(state: State) -> dict:
     words = set(tokenize(contextualize_query(state["messages"])))

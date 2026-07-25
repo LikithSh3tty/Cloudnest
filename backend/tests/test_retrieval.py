@@ -420,6 +420,26 @@ def test_ordinary_question_with_person_or_ticket_word_is_not_escalated():
     assert ask("let me talk to a person") == "deflect"
 
 
+def test_human_request_detection_is_robust_to_phrasing():
+    """Intent detection, not fixed phrases: natural variants are recognized and
+    ordinary questions containing a human-noun are not.
+    """
+    f = app._explicit_human_request
+    for q in [
+        "connect to human please", "connect me to an agent", "i need a human",
+        "can i speak with a representative", "real person please", "get me someone",
+        "put me through to an agent", "transfer me to a human", "escalate this",
+        "agent", "human please",
+    ]:
+        assert f(q) is True, q
+    for q in [
+        "am I the only person seeing this", "how do I check my ticket status",
+        "how do I connect my account to the API", "how do I transfer ownership of a team",
+        "how do I get a refund", "can someone explain the billing cycle",
+    ]:
+        assert f(q) is False, q
+
+
 def test_connective_handoff_phrases_deflect_then_escalate_on_insist():
     """Handoff phrasings beyond 'talk to' - connect/transfer/put through, and
     'speak/talk with' - are recognized: a first request deflects, and insisting
