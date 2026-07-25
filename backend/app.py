@@ -41,6 +41,9 @@ HUMAN_REQUEST_PHRASES = (
     "real person", "real human", "human agent", "live agent",
     "raise a ticket", "open a ticket", "create a support ticket",
     "escalate this", "escalate to",
+    "connect me to", "put me through", "transfer me to",
+    "speak with a human", "speak with a person", "speak with an agent",
+    "speak with a representative", "talk with a human", "talk with a person",
 )
 CLARIFY_BORDERLINE_MSG = (
     "I want to make sure I get this right, so could you tell me a bit more? "

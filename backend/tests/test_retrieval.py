@@ -402,3 +402,14 @@ def test_ordinary_question_with_person_or_ticket_word_is_not_escalated():
     assert ask("how do I check my ticket status") == "responder"
     # a genuine request still escalates
     assert ask("let me talk to a person") == "escalate"
+
+
+def test_connective_handoff_phrases_escalate():
+    """Handoff phrasings beyond 'talk to' - connect/transfer/put through, and
+    'speak/talk with' - must also escalate, even at high confidence.
+    """
+    ask = lambda q: app.picker_for_test(0.5, [{"role": "user", "content": q}], False)
+    assert ask("this is useless, connect me to a representative") == "escalate"
+    assert ask("put me through to an agent") == "escalate"
+    assert ask("can you transfer me to a human") == "escalate"
+    assert ask("i would rather speak with a person") == "escalate"
