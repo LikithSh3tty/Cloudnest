@@ -2,9 +2,11 @@ import hashlib
 import json
 import os
 import re
+from datetime import datetime, timezone
 from operator import add
 from pathlib import Path
 from typing import Annotated, TypedDict
+from uuid import uuid4
 import numpy as np
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
@@ -18,6 +20,26 @@ if ENV_FILE.exists():
 DOCS_DIR = Path(__file__).resolve().parent.parent / "cloudnest_docs"
 # cosine similarity, chosen from backend/calibrate.py output
 CONFIDENCE_THRESHOLD = 0.30
+ESCALATE_FLOOR = 0.27  # just above the measured out-of-scope ceiling (0.265);
+                       # below this a question is off-topic noise and never tickets
+# Single whole-word triggers only (matched on word boundaries, so "personal"
+# won't hit "person"). Deliberately excludes common words like "someone"/"rep"
+# that appear in ordinary questions ("can someone tell me the price"), to keep
+# escalation from firing on non-requests.
+HUMAN_REQUEST_WORDS = {
+    "human", "agent", "person", "representative", "ticket", "escalate",
+}
+CLARIFY_BORDERLINE_MSG = (
+    "I want to make sure I get this right, so could you tell me a bit more? "
+    "Your plan, the device you're on, or the exact message you're seeing all "
+    "help. Our support team can also confirm the specifics if you'd rather go "
+    "straight there."
+)
+CLARIFY_OFFTOPIC_MSG = (
+    "I can really only help with CloudNest itself, things like your plan, "
+    "billing, your account, or syncing and setup. Tell me what you're running "
+    "into with any of those and I'll take it from there."
+)
 CONTEXT_CHAR_CAP = 200  # bound how much of the prior turn we fold in
 BILLING_WORDS = {
     "price", "pricing", "plan", "plans", "pay", "payment", "bill", "billing",
@@ -148,6 +170,11 @@ def contextualize_query(messages: list[dict]) -> str:
             prior = msg["content"].strip()[:CONTEXT_CHAR_CAP]
             return f"{prior}. {current}"
     return current
+
+def _explicit_human_request(text: str) -> bool:
+    """True when the user directly asks for a human handoff."""
+    words = set(re.findall(r"[a-z']+", text.lower()))
+    return bool(words & HUMAN_REQUEST_WORDS)
 
 def router(state: State) -> dict:
     words = set(tokenize(contextualize_query(state["messages"])))
@@ -375,19 +402,68 @@ def responder(state: State) -> dict:
         # No horizontal rules between sections — a bold title is separation enough.
         parts = [f"**{c['title']}**\n\n{c['text']}" for c in state["context"][:EXTRACTIVE_SECTIONS]]
         answer = "Here's what should help:\n\n" + "\n\n".join(parts)
-    return {"messages": [{"role": "assistant", "content": answer}], "clarified": False}
+    return {"messages": [{"role": "assistant", "content": answer}],
+            "clarified": False, "escalate": False, "ticket": None}
 
-def clarify(_state: State) -> dict:
-    msg = ("I want to make sure I get this right, so could you tell me a bit more? "
-           "Your plan, the device you're on, or the exact message you're seeing all "
-           "help. Our support team can also confirm the specifics if you'd rather go "
-           "straight there.")
-    return {"messages": [{"role": "assistant", "content": msg}], "clarified": True}
+def picker_for_test(confidence: float, messages: list[dict],
+                    lexical_rescue: bool) -> str:
+    """The gate's routing decision, as a pure function so it is unit-testable.
+
+    Order matters: an explicit human request wins over confidence; a rescued
+    borderline answer beats a clarify; a repeat borderline miss escalates; a
+    first borderline miss clarifies; anything below the floor is off-topic and
+    can only clarify - it never escalates, so noise cannot create tickets.
+    """
+    current = messages[-1]["content"]
+    if _explicit_human_request(current):
+        return "escalate"
+    if confidence >= CONFIDENCE_THRESHOLD:
+        return "responder"
+    if ESCALATE_FLOOR <= confidence < CONFIDENCE_THRESHOLD:
+        if lexical_rescue:
+            return "responder"
+        if _prev_assistant_was_borderline_clarify(messages):
+            return "escalate"
+        return "clarify"
+    return "clarify"  # below the floor: off-topic, clarify only, never escalate
+
+
+def _prev_assistant_was_borderline_clarify(messages: list[dict]) -> bool:
+    for msg in reversed(messages[:-1]):
+        if msg["role"] == "assistant":
+            return msg["content"] == CLARIFY_BORDERLINE_MSG
+    return False
+
+
+def clarify(state: State) -> dict:
+    msg = CLARIFY_OFFTOPIC_MSG if state["confidence"] < ESCALATE_FLOOR else CLARIFY_BORDERLINE_MSG
+    return {"messages": [{"role": "assistant", "content": msg}],
+            "clarified": True, "escalate": False, "ticket": None}
+
+
+def escalate(state: State) -> dict:
+    reason = ("user_requested"
+              if _explicit_human_request(state["messages"][-1]["content"])
+              else "repeated_low_confidence")
+    ticket = {
+        "id": uuid4().hex,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "question": state["messages"][-1]["content"],
+        "category": state.get("category", "general"),
+        "confidence": state.get("confidence", 0.0),
+        "conversation": state["messages"],
+        "reason": reason,
+    }
+    msg = ("I've passed this to our support team and someone will follow up "
+           "with you directly. Is there anything else I can help with in the "
+           "meantime?")
+    return {"messages": [{"role": "assistant", "content": msg}],
+            "clarified": False, "escalate": True, "ticket": ticket}
 
 def build_app():
     graph = StateGraph(State)
     for fn in (router, semantic_retriever, lexical_retriever, fusion,
-               responder, clarify):
+               responder, clarify, escalate):
         graph.add_node(fn.__name__, fn)
     graph.add_edge(START, "router")
     # fan out: both retrieval branches run in parallel off the router
@@ -398,10 +474,11 @@ def build_app():
     graph.add_edge("lexical_retriever", "fusion")
 
     def picker(s: State) -> str:
-        return "responder" if s["confidence"] >= CONFIDENCE_THRESHOLD else "clarify"
-    graph.add_conditional_edges("fusion", picker, ["responder", "clarify"])
+        return picker_for_test(s["confidence"], s["messages"], s["lexical_rescue"])
+    graph.add_conditional_edges("fusion", picker, ["responder", "clarify", "escalate"])
     graph.add_edge("responder", END)
     graph.add_edge("clarify", END)
+    graph.add_edge("escalate", END)
     return graph.compile(checkpointer=MemorySaver())
 
 if __name__ == "__main__":

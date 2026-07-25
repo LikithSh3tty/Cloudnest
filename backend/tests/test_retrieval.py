@@ -320,3 +320,64 @@ def test_graph_still_answers_confident_question_through_parallel_path():
     )
     assert result["clarified"] is False
     assert result["messages"][-1]["content"]
+
+
+def _run(messages):
+    return app.build_app().invoke(
+        {"messages": messages},
+        {"configurable": {"thread_id": f"t-{abs(hash(str(messages)))}"}},
+    )
+
+
+def test_explicit_human_request_escalates_and_builds_ticket():
+    result = _run([{"role": "user", "content": "this is useless, let me talk to a human"}])
+    assert result["escalate"] is True
+    assert result["clarified"] is False
+    assert result["ticket"]["reason"] == "user_requested"
+    assert result["ticket"]["id"] and result["ticket"]["created_at"]
+    assert result["ticket"]["conversation"]  # full history captured
+
+
+def test_offtopic_noise_never_escalates_even_when_repeated():
+    prior_clarify = app.CLARIFY_OFFTOPIC_MSG
+    result = _run([
+        {"role": "user", "content": "cat mouse banana"},
+        {"role": "assistant", "content": prior_clarify},
+        {"role": "user", "content": "table chair cloud"},
+    ])
+    assert result["escalate"] is False
+    assert result["clarified"] is True
+    assert result["ticket"] is None
+
+
+def test_repeated_borderline_miss_escalates():
+    # Force the borderline band deterministically, independent of the corpus.
+    import app as _app
+
+    def fake_fusion(state):
+        return {"context": [], "confidence": 0.28, "lexical_rescue": False}
+
+    graph_state = [
+        {"role": "user", "content": "something vaguely about my plan tier"},
+        {"role": "assistant", "content": _app.CLARIFY_BORDERLINE_MSG},
+        {"role": "user", "content": "the other thing i mentioned"},
+    ]
+    # gate reads confidence + prior clarify text from history
+    assert _app.picker_for_test(0.28, graph_state, lexical_rescue=False) == "escalate"
+    assert _app.picker_for_test(0.28, graph_state[:1], lexical_rescue=False) == "clarify"
+
+
+def test_borderline_with_lexical_rescue_answers():
+    import app as _app
+    msgs = [{"role": "user", "content": "cloudnest-cli"}]
+    assert _app.picker_for_test(0.28, msgs, lexical_rescue=True) == "responder"
+
+
+def test_offtopic_below_floor_never_escalates_via_picker():
+    import app as _app
+    msgs = [
+        {"role": "user", "content": "cat"},
+        {"role": "assistant", "content": _app.CLARIFY_OFFTOPIC_MSG},
+        {"role": "user", "content": "mouse"},
+    ]
+    assert _app.picker_for_test(0.10, msgs, lexical_rescue=False) == "clarify"
