@@ -290,3 +290,33 @@ def test_extractive_fallback_caps_sections(monkeypatch):
     shown = [i for i in range(46) if f"S{i}" in answer]
     assert len(shown) <= app.EXTRACTIVE_SECTIONS
     assert len(shown) >= 1
+
+
+def test_parallel_nodes_write_separate_state_keys():
+    q = "how much does the pro plan cost"
+    state = {"messages": [{"role": "user", "content": q}]}
+    sem = app.semantic_retriever(state)
+    lex = app.lexical_retriever(state)
+    assert set(sem) == {"semantic"} and "ranking" in sem["semantic"]
+    assert set(lex) == {"lexical"} and "ranking" in lex["lexical"]
+
+
+def test_fusion_node_produces_context_and_confidence():
+    q = "how much does the pro plan cost"
+    state = {"messages": [{"role": "user", "content": q}]}
+    state.update(app.semantic_retriever(state))
+    state.update(app.lexical_retriever(state))
+    out = app.fusion(state)
+    assert out["context"]
+    assert out["confidence"] >= app.CONFIDENCE_THRESHOLD
+    assert isinstance(out["lexical_rescue"], bool)
+
+
+def test_graph_still_answers_confident_question_through_parallel_path():
+    graph = app.build_app()
+    result = graph.invoke(
+        {"messages": [{"role": "user", "content": "how do I get a refund"}]},
+        {"configurable": {"thread_id": "test-parallel-confident"}},
+    )
+    assert result["clarified"] is False
+    assert result["messages"][-1]["content"]

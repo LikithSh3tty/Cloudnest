@@ -124,9 +124,14 @@ INDEX = load_index() if embed is not None else None
 class State(TypedDict):
     messages: Annotated[list[dict], add]
     category: str
-    context: list[dict]
+    semantic: dict          # written by semantic_retriever (parallel branch)
+    lexical: dict           # written by lexical_retriever (parallel branch)
+    context: list[dict]     # fused, sent to the LLM and used for citations
     confidence: float
+    lexical_rescue: bool
     clarified: bool
+    escalate: bool          # set by the gate/escalate node (Task 4)
+    ticket: dict | None     # built by escalate (Task 4); None otherwise
 
 def contextualize_query(messages: list[dict]) -> str:
     """Fold the previous user turn into the retrieval query.
@@ -249,6 +254,18 @@ def retriever(state: State) -> dict:
     question = contextualize_query(state["messages"])
     return fuse_results(semantic_retrieve(question), lexical_retrieve(question))
 
+
+def semantic_retriever(state: State) -> dict:
+    return {"semantic": semantic_retrieve(contextualize_query(state["messages"]))}
+
+
+def lexical_retriever(state: State) -> dict:
+    return {"lexical": lexical_retrieve(contextualize_query(state["messages"]))}
+
+
+def fusion(state: State) -> dict:
+    return fuse_results(state["semantic"], state["lexical"])
+
 SUPPORT_SYSTEM_PROMPT = """You are the official AI support assistant for CloudNest.
 
 Provide fast, accurate, friendly, professional support. Every response should feel \
@@ -369,13 +386,20 @@ def clarify(_state: State) -> dict:
 
 def build_app():
     graph = StateGraph(State)
-    for fn in (router, retriever, responder, clarify):
+    for fn in (router, semantic_retriever, lexical_retriever, fusion,
+               responder, clarify):
         graph.add_node(fn.__name__, fn)
     graph.add_edge(START, "router")
-    graph.add_edge("router", "retriever")
+    # fan out: both retrieval branches run in parallel off the router
+    graph.add_edge("router", "semantic_retriever")
+    graph.add_edge("router", "lexical_retriever")
+    # fan in: fusion waits for both branches (it has an edge from each)
+    graph.add_edge("semantic_retriever", "fusion")
+    graph.add_edge("lexical_retriever", "fusion")
+
     def picker(s: State) -> str:
         return "responder" if s["confidence"] >= CONFIDENCE_THRESHOLD else "clarify"
-    graph.add_conditional_edges("retriever", picker, ["responder", "clarify"])
+    graph.add_conditional_edges("fusion", picker, ["responder", "clarify"])
     graph.add_edge("responder", END)
     graph.add_edge("clarify", END)
     return graph.compile(checkpointer=MemorySaver())
