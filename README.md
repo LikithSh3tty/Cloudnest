@@ -26,7 +26,7 @@ Retrieval is real semantic search: every doc section is embedded ahead of time b
 
 ## How it's wired
 
-The backend is a LangGraph `StateGraph` with seven nodes: a router, two retrievers that run in parallel, a fusion step, and a three-way gate to a responder, a clarify, or an escalate node. A question comes in, gets routed, gets matched against the docs by both a semantic and a lexical branch at once, and the two rankings are merged by Reciprocal Rank Fusion before the gate decides whether to answer, ask for more detail, or hand off to a human.
+The backend is a LangGraph `StateGraph` with eight nodes: a router, two retrievers that run in parallel, a fusion step, and a four-way gate to a responder, a clarify, a deflect, or an escalate node. A question comes in, gets routed, gets matched against the docs by both a semantic and a lexical branch at once, and the two rankings are merged by Reciprocal Rank Fusion before the gate decides whether to answer, ask for more detail, offer to help in place of a human, or hand off to a human.
 
 ```
                          question
@@ -48,14 +48,14 @@ The backend is a LangGraph `StateGraph` with seven nodes: a router, two retrieve
                             ▼
                     ┌───────────────┐
                     │ gate (2 floor)│
-                    └───┬───┬───┬───┘
-              conf≥0.30 │   │   │ explicit request / 2nd borderline miss
-              or rescue │   │   └──────────────► escalate ─► ticket
-                        ▼   ▼
-                  responder  clarify (borderline / off-topic)
+                    └──┬──┬──┬──┬────┘
+              conf≥0.30│  │  │  │ 1st human request ─► deflect (try me first)
+              or rescue│  │  │  └ insisted / 2nd borderline miss ─► escalate ─► ticket
+                       ▼  ▼  ▼
+              responder clarify deflect
 ```
 
-Low-confidence-but-in-scope questions (a repeated borderline miss) and explicit requests for a human ("let me talk to a person", "get me an agent") escalate instead of clarifying again: the escalate node builds a support ticket (id, timestamp, question, category, confidence, the full conversation, and a reason) and hands the conversation off rather than guessing further. That ticket comes back from the API today but isn't persisted anywhere yet — see [Things I'd add next](#things-id-add-next).
+A first explicit request for a human ("let me talk to a person", "get me an agent", "connect me to a representative") doesn't escalate straight away. It routes to the deflect node, which offers to help right there first, since the bot usually can. Only if the user still asks for a person after that does the gate escalate. Escalation also fires on a repeated borderline miss (a real, in-scope question the bot couldn't get confident about two turns running). The escalate node builds a support ticket (id, timestamp, question, category, confidence, the full conversation, and a reason) and hands off rather than guessing further. That ticket comes back from the API today but isn't persisted anywhere yet — see [Things I'd add next](#things-id-add-next).
 
 `index.py` wraps that same graph in a FastAPI app so the React frontend can talk to it over `/api/chat`. `app.py` can also be run on its own as a command-line chat loop, which is the quickest way to poke at the logic without touching the frontend.
 

@@ -329,13 +329,24 @@ def _run(messages):
     )
 
 
-def test_explicit_human_request_escalates_and_builds_ticket():
-    result = _run([{"role": "user", "content": "this is useless, let me talk to a human"}])
-    assert result["escalate"] is True
-    assert result["clarified"] is False
-    assert result["ticket"]["reason"] == "user_requested"
-    assert result["ticket"]["id"] and result["ticket"]["created_at"]
-    assert result["ticket"]["conversation"]  # full history captured
+def test_first_human_request_deflects_then_insisting_escalates():
+    # First ask: the bot offers to help instead of escalating - no ticket yet.
+    first = _run([{"role": "user", "content": "this is useless, let me talk to a human"}])
+    assert first["escalate"] is False
+    assert first["ticket"] is None
+    assert first["messages"][-1]["content"] == app.DEFLECT_MSG
+
+    # Insisting after the deflection: now it escalates and builds a ticket.
+    second = _run([
+        {"role": "user", "content": "let me talk to a human"},
+        {"role": "assistant", "content": app.DEFLECT_MSG},
+        {"role": "user", "content": "no really, get me a person"},
+    ])
+    assert second["escalate"] is True
+    assert second["clarified"] is False
+    assert second["ticket"]["reason"] == "user_requested"
+    assert second["ticket"]["id"] and second["ticket"]["created_at"]
+    assert second["ticket"]["conversation"]  # full history captured
 
 
 def test_offtopic_noise_never_escalates_even_when_repeated():
@@ -381,8 +392,13 @@ def test_offtopic_below_floor_never_escalates_via_picker():
 
 
 def test_escalated_result_carries_ticket_and_no_sources():
+    # Escalation happens on an insisted request (after a prior deflection).
     result = app.build_app().invoke(
-        {"messages": [{"role": "user", "content": "let me talk to a real person"}]},
+        {"messages": [
+            {"role": "user", "content": "let me talk to a real person"},
+            {"role": "assistant", "content": app.DEFLECT_MSG},
+            {"role": "user", "content": "yes really, a real person please"},
+        ]},
         {"configurable": {"thread_id": "test-api-ticket"}},
     )
     # what index.py will forward to the client
@@ -400,16 +416,25 @@ def test_ordinary_question_with_person_or_ticket_word_is_not_escalated():
     ask = lambda q: app.picker_for_test(0.5, [{"role": "user", "content": q}], False)
     assert ask("am I the only person seeing this") == "responder"
     assert ask("how do I check my ticket status") == "responder"
-    # a genuine request still escalates
-    assert ask("let me talk to a person") == "escalate"
+    # a genuine request deflects first (offer to help before a handoff)
+    assert ask("let me talk to a person") == "deflect"
 
 
-def test_connective_handoff_phrases_escalate():
+def test_connective_handoff_phrases_deflect_then_escalate_on_insist():
     """Handoff phrasings beyond 'talk to' - connect/transfer/put through, and
-    'speak/talk with' - must also escalate, even at high confidence.
+    'speak/talk with' - are recognized: a first request deflects, and insisting
+    after the deflection escalates.
     """
     ask = lambda q: app.picker_for_test(0.5, [{"role": "user", "content": q}], False)
-    assert ask("this is useless, connect me to a representative") == "escalate"
-    assert ask("put me through to an agent") == "escalate"
-    assert ask("can you transfer me to a human") == "escalate"
-    assert ask("i would rather speak with a person") == "escalate"
+    assert ask("this is useless, connect me to a representative") == "deflect"
+    assert ask("put me through to an agent") == "deflect"
+    assert ask("can you transfer me to a human") == "deflect"
+    assert ask("i would rather speak with a person") == "deflect"
+
+    # insisting after a deflection escalates
+    insist = [
+        {"role": "user", "content": "connect me to a representative"},
+        {"role": "assistant", "content": app.DEFLECT_MSG},
+        {"role": "user", "content": "put me through to an agent"},
+    ]
+    assert app.picker_for_test(0.5, insist, False) == "escalate"

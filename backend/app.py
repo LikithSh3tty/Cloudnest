@@ -56,6 +56,12 @@ CLARIFY_OFFTOPIC_MSG = (
     "billing, your account, or syncing and setup. Tell me what you're running "
     "into with any of those and I'll take it from there."
 )
+DEFLECT_MSG = (
+    "I can almost certainly sort this out for you right here, and it's usually "
+    "quicker than waiting for someone to get back to you. Tell me what you're "
+    "running into and I'll take care of it. If you'd still rather talk to a "
+    "person after that, just say so and I'll connect you."
+)
 CONTEXT_CHAR_CAP = 200  # bound how much of the prior turn we fold in
 BILLING_WORDS = {
     "price", "pricing", "plan", "plans", "pay", "payment", "bill", "billing",
@@ -431,14 +437,18 @@ def picker_for_test(confidence: float, messages: list[dict],
                     lexical_rescue: bool) -> str:
     """The gate's routing decision, as a pure function so it is unit-testable.
 
-    Order matters: an explicit human request wins over confidence; a rescued
-    borderline answer beats a clarify; a repeat borderline miss escalates; a
-    first borderline miss clarifies; anything below the floor is off-topic and
-    can only clarify - it never escalates, so noise cannot create tickets.
+    Order matters: an explicit human request wins over confidence, but the
+    first one deflects (offer to help before handing off) and only a repeat
+    request after that deflection escalates; a rescued borderline answer beats
+    a clarify; a repeat borderline miss escalates; a first borderline miss
+    clarifies; anything below the floor is off-topic and can only clarify - it
+    never escalates, so noise cannot create tickets.
     """
     current = messages[-1]["content"]
     if _explicit_human_request(current):
-        return "escalate"
+        # Try to help before handing off: the first request deflects, and only
+        # a request made after the user has already been deflected escalates.
+        return "escalate" if _deflected_before(messages) else "deflect"
     if confidence >= CONFIDENCE_THRESHOLD:
         return "responder"
     if ESCALATE_FLOOR <= confidence < CONFIDENCE_THRESHOLD:
@@ -457,9 +467,31 @@ def _prev_assistant_was_borderline_clarify(messages: list[dict]) -> bool:
     return False
 
 
+def _deflected_before(messages: list[dict]) -> bool:
+    """True if the bot has already offered to help in place of a human handoff.
+
+    Scans the whole history (not just the previous turn) so a user who was
+    deflected, asked a question or two, and then still wants a person is
+    recognized as insisting and gets escalated.
+    """
+    return any(m["role"] == "assistant" and m["content"] == DEFLECT_MSG
+               for m in messages[:-1])
+
+
 def clarify(state: State) -> dict:
     msg = CLARIFY_OFFTOPIC_MSG if state["confidence"] < ESCALATE_FLOOR else CLARIFY_BORDERLINE_MSG
     return {"messages": [{"role": "assistant", "content": msg}],
+            "clarified": True, "escalate": False, "ticket": None}
+
+
+def deflect(state: State) -> dict:
+    """First response to a human-handoff request: offer to help first.
+
+    Not a ticket and not a refusal - it invites the user to state their issue
+    so the bot can try. If they ask for a person again after this, the gate
+    routes to escalate (see _deflected_before).
+    """
+    return {"messages": [{"role": "assistant", "content": DEFLECT_MSG}],
             "clarified": True, "escalate": False, "ticket": None}
 
 
@@ -485,7 +517,7 @@ def escalate(state: State) -> dict:
 def build_app():
     graph = StateGraph(State)
     for fn in (router, semantic_retriever, lexical_retriever, fusion,
-               responder, clarify, escalate):
+               responder, clarify, escalate, deflect):
         graph.add_node(fn.__name__, fn)
     graph.add_edge(START, "router")
     # fan out: both retrieval branches run in parallel off the router
@@ -497,10 +529,12 @@ def build_app():
 
     def picker(s: State) -> str:
         return picker_for_test(s["confidence"], s["messages"], s["lexical_rescue"])
-    graph.add_conditional_edges("fusion", picker, ["responder", "clarify", "escalate"])
+    graph.add_conditional_edges("fusion", picker,
+                                ["responder", "clarify", "escalate", "deflect"])
     graph.add_edge("responder", END)
     graph.add_edge("clarify", END)
     graph.add_edge("escalate", END)
+    graph.add_edge("deflect", END)
     return graph.compile(checkpointer=MemorySaver())
 
 if __name__ == "__main__":
