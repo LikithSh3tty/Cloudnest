@@ -22,6 +22,7 @@ Retrieval is real semantic search: every doc section is embedded ahead of time b
 - **Bails out honestly** when it isn't confident. Below a threshold calibrated against real questions (see `backend/calibrate.py`), it asks you to add detail rather than guessing.
 - **Keeps retrieval internals out of the UI.** The API still returns the route, confidence, and cited sources for every answer, but the chat window shows only the answer itself.
 - **Remembers the conversation.** The CLI keeps context across turns via a LangGraph checkpointer; the web version carries history in the browser since the serverless function is stateless.
+- **Understands follow-ups.** A reply like "does it cost extra" carries no topic word of its own — retrieval folds in the previous turn before embedding the question, so it still finds the right section instead of scoring below the confidence threshold or matching the wrong one.
 
 ## How it's wired
 
@@ -69,7 +70,7 @@ Alliedworks/
 │   ├── calibrate.py         # measures the confidence threshold from real questions
 │   ├── index.npz            # committed embedding index (vectors + chunk metadata)
 │   ├── model/                # vendored int8 embedding model + tokenizer
-│   ├── tests/                # pytest suite (19 tests)
+│   ├── tests/                # pytest suite (25 tests)
 │   ├── requirements.txt
 │   └── requirements-dev.txt  # requirements.txt + pytest
 ├── cloudnest_docs/          # the knowledge base — plain markdown
@@ -180,6 +181,8 @@ The whole corpus rather than a fixed cutoff, because a question can genuinely ne
 
 If that top score clears `0.30` (a constant near the top of `app.py`, chosen by measuring the gap between in-scope and out-of-scope questions — see `backend/calibrate.py`), the responder runs. If it doesn't, you get the clarify prompt instead. It keeps the agent from confidently answering questions the docs don't actually cover.
 
+Before any of that, both `router()` and `retriever()` run the question through `contextualize_query()`, which folds the previous user turn onto the current one (capped at `CONTEXT_CHAR_CAP`, 200 characters) before it's embedded. A bare follow-up like "does it cost extra" carries no topic word of its own — alone it scores 0.285 (just under the threshold) and points at the wrong section; folded onto the turn before it ("I want to add two-factor authentication"), it scores 0.55 and finds the right one. Only the retrieval-facing query is folded — Claude still receives the full, unfolded conversation for generation, since it was never confused about "it"; only retrieval was.
+
 If the embedding model or index can't be loaded, retrieval falls back to a keyword scorer (the previous approach — token overlap with a small synonym map), so the app still answers with no model and no API key at all.
 
 ### Rebuilding the search index
@@ -201,4 +204,4 @@ Live at **[cloudnest-nine.vercel.app](https://cloudnest-nine.vercel.app)**. `/ap
 - A stronger embedding model, and a real retrieval strategy (fusion/rerank, not just a bigger fixed cutoff) once the corpus outgrows `SMALL_CORPUS_LIMIT`. `FALLBACK_TOP_K` in `app.py` is a placeholder, not a tuned value — a fixed cutoff has the same failure mode the whole-corpus change just fixed, just at a different scale.
 - Persist conversations server-side so history doesn't have to round-trip through the browser.
 - Re-run `backend/calibrate.py` against real production questions once there's traffic. The current threshold is calibrated from a 16-question probe set, which is a reasonable start but not the same as live data.
-- Frontend tests. The backend has 19 pytest cases around the router, retriever, and index; the React side is only checked by hand.
+- Frontend tests. The backend has 25 pytest cases around the router, retriever, and index; the React side is only checked by hand.
