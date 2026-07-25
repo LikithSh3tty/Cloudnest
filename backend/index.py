@@ -24,13 +24,17 @@ def chat(body: ChatIn):
     config = {"configurable": {"thread_id": uuid4().hex}}
     result = graph.invoke({"messages": messages}, config)
     # Retrieve wide for the LLM but cite narrow: show only the 3 best-ranked
-    # sections as chips, so extra recall doesn't clutter the UI with sections
-    # the answer barely touched. No sources on a clarify (chunks were sub-threshold).
-    sources = [] if result["clarified"] else sources_from_context(result["context"])[:3]
+    # sections as chips. No sources on a clarify (sub-threshold) or an
+    # escalate (the answer is a handoff, not a doc-grounded reply).
+    escalated = result.get("escalate", False)
+    sources = ([] if result["clarified"] or escalated
+               else sources_from_context(result["context"])[:3])
     return {"answer": result["messages"][-1]["content"],
             "category": result["category"],
             "confidence": result["confidence"],
             "clarified": result["clarified"],
+            "escalated": escalated,
+            "ticket": result.get("ticket"),
             "sources": sources}
 
 

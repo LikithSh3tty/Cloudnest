@@ -381,3 +381,16 @@ def test_offtopic_below_floor_never_escalates_via_picker():
         {"role": "user", "content": "mouse"},
     ]
     assert _app.picker_for_test(0.10, msgs, lexical_rescue=False) == "clarify"
+
+
+def test_escalated_result_carries_ticket_and_no_sources():
+    result = app.build_app().invoke(
+        {"messages": [{"role": "user", "content": "let me talk to a real person"}]},
+        {"configurable": {"thread_id": "test-api-ticket"}},
+    )
+    # what index.py will forward to the client
+    assert result["escalate"] is True
+    assert result["ticket"] is not None
+    sources = [] if (result["clarified"] or result["escalate"]) else \
+        app.sources_from_context(result["context"])[:3]
+    assert sources == []
