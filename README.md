@@ -174,9 +174,9 @@ Response:
 
 Worth a note since it's the core of the thing and there's nothing hidden.
 
-Each doc gets split into sections on its markdown headings. Every section is embedded once, ahead of time, by a small local model (`all-MiniLM-L6-v2`, an int8 ONNX export — no API key, no per-query cost, runs offline) and the resulting vectors are committed as `backend/index.npz`. When a question comes in, only the question is embedded, and sections are ranked by cosine similarity against it. The top 5 (`TOP_K` in `app.py`) become the context, and confidence is the similarity of the best one. Because it matches on meaning rather than shared words, "how much will I be charged if I add a teammate mid-cycle" finds the pricing section even though it shares no keywords with it.
+Each doc gets split into sections on its markdown headings. Every section is embedded once, ahead of time, by a small local model (`all-MiniLM-L6-v2`, an int8 ONNX export — no API key, no per-query cost, runs offline) and the resulting vectors are committed as `backend/index.npz`. When a question comes in, only the question is embedded, and sections are ranked by cosine similarity against it. All 46 sections (`TOP_K` in `app.py`, set to the corpus size) become the context, and confidence is the similarity of the best one. Because it matches on meaning rather than shared words, "how much will I be charged if I add a teammate mid-cycle" finds the pricing section even though it shares no keywords with it.
 
-Five rather than three because some answers genuinely need two sections at once, e.g. "does emptying Trash free up enough space to resume syncing" needs both the Trash-recovery section and the storage-quota section, and the second one doesn't always rank in the top 3 under a model this small. The API still only cites the best 3 by score, so the wider recall doesn't clutter the sources it reports.
+The whole corpus rather than a fixed cutoff, because a question can genuinely need several sections spread far apart in the ranking: "I need API access, EU residency, bank transfer, and CLI automation" touches 4 sections, and 2 of them ranked outside any small top-N against that query (10th and 22nd out of 46). At ~1,800 tokens for the entire corpus, sending everything costs nothing meaningful, and it's simpler than tuning a cutoff that would just need raising again for the next multi-fact question. This only changes what an already-confident answer gets to draw from — `CONFIDENCE_THRESHOLD` routing still looks at just the single best score, and the API still cites only the best 3 by score, so the wider recall doesn't clutter the sources it reports.
 
 If that top score clears `0.30` (a constant near the top of `app.py`, chosen by measuring the gap between in-scope and out-of-scope questions — see `backend/calibrate.py`), the responder runs. If it doesn't, you get the clarify prompt instead. It keeps the agent from confidently answering questions the docs don't actually cover.
 
@@ -198,7 +198,7 @@ Live at **[cloudnest-nine.vercel.app](https://cloudnest-nine.vercel.app)**. `/ap
 
 ## Things I'd add next
 
-- A stronger embedding model once the doc set outgrows what a 384-dim int8 model can rank well; `TOP_K` and the calibrated threshold are both compensating for its ceiling.
+- A stronger embedding model, and a real cutoff instead of "send everything," once the doc set outgrows a size where sending the whole corpus is basically free. `TOP_K` currently equals the corpus size specifically because 46 sections is cheap to send in full; that stops being true well before the corpus reaches even a few hundred sections.
 - Persist conversations server-side so history doesn't have to round-trip through the browser.
 - Re-run `backend/calibrate.py` against real production questions once there's traffic. The current threshold is calibrated from a 16-question probe set, which is a reasonable start but not the same as live data.
 - Frontend tests. The backend has 19 pytest cases around the router, retriever, and index; the React side is only checked by hand.

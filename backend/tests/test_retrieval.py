@@ -180,3 +180,25 @@ def test_ambiguous_followup_now_clears_threshold_and_finds_2fa():
     result = app.retriever(state)
     assert result["confidence"] >= app.CONFIDENCE_THRESHOLD
     assert result["context"][0]["title"] == "Two-Factor Authentication (2FA)"
+
+
+def test_complex_multi_fact_query_surfaces_all_requested_sections():
+    """Regression: a query touching many distinct facts (API, EU residency, bank
+    transfer, CLI, unlimited devices) needs sections that rank far apart -
+    "Payment Methods" (bank transfer) ranks ~10th and "CLI Tool" ranks ~22nd
+    against this exact query, both well outside any small top-N. TOP_K must be
+    wide enough that neither gets dropped, or the bot wrongly says it can't
+    confirm facts the docs actually state.
+    """
+    question = (
+        "I am a Linux developer with 12 employees. We need API access, EU data "
+        "residency, bank transfer payments, CLI automation, and unlimited "
+        "devices. Which plan should we choose, and why?"
+    )
+    result = app.retriever({
+        "messages": [{"role": "user", "content": question}],
+        "category": "billing",
+    })
+    titles = {c["title"] for c in result["context"]}
+    assert "Payment Methods" in titles, titles
+    assert "CLI Tool" in titles, titles

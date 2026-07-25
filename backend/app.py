@@ -19,10 +19,6 @@ DOCS_DIR = Path(__file__).resolve().parent.parent / "cloudnest_docs"
 # cosine similarity, chosen from backend/calibrate.py output
 CONFIDENCE_THRESHOLD = 0.30
 CONTEXT_CHAR_CAP = 200  # bound how much of the prior turn we fold in
-# sections sent to the LLM. Wider than it looks necessary because an answer can
-# span two sections (e.g. Trash recovery + Storage Full quota) that don't both
-# rank in the top 3 under a small embedding model.
-TOP_K = 5
 BILLING_WORDS = {
     "price", "pricing", "plan", "plans", "pay", "payment", "bill", "billing",
     "invoice", "refund", "subscription", "upgrade", "downgrade", "charge",
@@ -69,6 +65,16 @@ def docs_hash() -> str:
     return digest.hexdigest()
 
 CHUNKS = load_chunks()
+# Sections sent to the LLM for grounding. Set to the whole corpus rather than a
+# fixed cutoff: a query can legitimately need facts from many sections at once
+# (e.g. "I need API access, EU residency, bank transfer, and CLI automation" -
+# 4 sections, 2 of them ranked outside any small top-N), and at ~1,800 tokens
+# for all of CHUNKS combined, sending everything costs nothing meaningful. This
+# does not affect CONFIDENCE_THRESHOLD routing (still the single top score) or
+# citations (still capped separately, see sources_from_context in index.py) -
+# only how much context an already-confident answer gets to draw from. Revisit
+# if the corpus grows enough that "everything" stops being cheap.
+TOP_K = len(CHUNKS)
 
 # Guarded so a missing model or index degrades to lexical retrieval instead of
 # breaking import. The app must still answer with neither model nor API key.
