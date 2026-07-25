@@ -18,6 +18,7 @@ if ENV_FILE.exists():
 DOCS_DIR = Path(__file__).resolve().parent.parent / "cloudnest_docs"
 # cosine similarity, chosen from backend/calibrate.py output
 CONFIDENCE_THRESHOLD = 0.30
+CONTEXT_CHAR_CAP = 200  # bound how much of the prior turn we fold in
 # sections sent to the LLM. Wider than it looks necessary because an answer can
 # span two sections (e.g. Trash recovery + Storage Full quota) that don't both
 # rank in the top 3 under a small embedding model.
@@ -108,8 +109,24 @@ class State(TypedDict):
     confidence: float
     clarified: bool
 
+def contextualize_query(messages: list[dict]) -> str:
+    """Fold the previous user turn into the retrieval query.
+
+    A follow-up like "does it cost extra" carries no topic word of its own,
+    so embedding it alone often misses or triggers a needless clarify. Only
+    retrieval sees the folded text - the full conversation still goes to
+    the LLM for the actual answer, so nothing changes about how Claude
+    reads the conversation.
+    """
+    current = messages[-1]["content"]
+    for msg in reversed(messages[:-1]):
+        if msg["role"] == "user" and msg["content"].strip():
+            prior = msg["content"].strip()[:CONTEXT_CHAR_CAP]
+            return f"{prior}. {current}"
+    return current
+
 def router(state: State) -> dict:
-    words = set(tokenize(state["messages"][-1]["content"]))
+    words = set(tokenize(contextualize_query(state["messages"])))
     billing, technical = len(words & BILLING_WORDS), len(words & TECH_WORDS)
     if billing == technical == 0:
         return {"category": "general"}
@@ -135,7 +152,7 @@ def lexical_retrieve(question: str) -> dict:
 
 
 def retriever(state: State) -> dict:
-    question = state["messages"][-1]["content"]
+    question = contextualize_query(state["messages"])
     if embed is None or INDEX is None:
         return lexical_retrieve(question)
     try:

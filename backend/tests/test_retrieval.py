@@ -129,3 +129,54 @@ def test_fully_degraded_path_answers_through_the_graph(monkeypatch):
     answer = result["messages"][-1]["content"]
     assert answer  # extractive fallback produced text
     assert result["clarified"] is False
+
+
+def test_contextualize_query_folds_in_prior_user_turn():
+    messages = [
+        {"role": "user", "content": "i want to add two-factor authentication"},
+        {"role": "assistant", "content": "Sure, here's how to enable 2FA..."},
+        {"role": "user", "content": "does it cost extra"},
+    ]
+    result = app.contextualize_query(messages)
+    assert result == "i want to add two-factor authentication. does it cost extra"
+
+
+def test_contextualize_query_first_turn_has_no_prior_to_fold():
+    messages = [{"role": "user", "content": "does it cost extra"}]
+    assert app.contextualize_query(messages) == "does it cost extra"
+
+
+def test_contextualize_query_skips_blank_prior_message():
+    messages = [
+        {"role": "user", "content": "   "},
+        {"role": "user", "content": "does it cost extra"},
+    ]
+    assert app.contextualize_query(messages) == "does it cost extra"
+
+
+def test_contextualize_query_caps_prior_turn_length():
+    long_prior = "x" * 500
+    messages = [
+        {"role": "user", "content": long_prior},
+        {"role": "user", "content": "does it cost extra"},
+    ]
+    result = app.contextualize_query(messages)
+    assert result == "x" * app.CONTEXT_CHAR_CAP + ". does it cost extra"
+
+
+def test_ambiguous_followup_now_clears_threshold_and_finds_2fa():
+    """Regression pinned to measured evidence: 'does it cost extra' alone scores
+    0.285 (below the 0.30 threshold) and points at the wrong section. Folded
+    with the turn before it, it must clear the threshold and find 2FA.
+    """
+    state = {
+        "messages": [
+            {"role": "user", "content": "i want to add two-factor authentication"},
+            {"role": "assistant", "content": "Sure, here's how to enable 2FA..."},
+            {"role": "user", "content": "does it cost extra"},
+        ],
+        "category": "general",
+    }
+    result = app.retriever(state)
+    assert result["confidence"] >= app.CONFIDENCE_THRESHOLD
+    assert result["context"][0]["title"] == "Two-Factor Authentication (2FA)"
