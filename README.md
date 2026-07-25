@@ -137,6 +137,8 @@ npm run dev
 
 Vite serves the UI on `http://localhost:5173` and proxies `/api` calls through to the backend on `:8000`, so you don't have to deal with CORS. The header shows "Support available" when a key is present and "Limited support" otherwise.
 
+Once it's running, [`EXAMPLE_QUESTIONS.md`](./EXAMPLE_QUESTIONS.md) has a curated set of questions to try, from single-fact lookups to ones that need several doc sections combined.
+
 ## API
 
 Two endpoints, both under `/api`.
