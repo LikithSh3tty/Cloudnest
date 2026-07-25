@@ -202,3 +202,37 @@ def test_complex_multi_fact_query_surfaces_all_requested_sections():
     titles = {c["title"] for c in result["context"]}
     assert "Payment Methods" in titles, titles
     assert "CLI Tool" in titles, titles
+
+
+def test_rrf_fuse_ranks_chunk_high_in_both_lists_first():
+    a = {"doc": "d1", "title": "A", "text": "a"}
+    b = {"doc": "d2", "title": "B", "text": "b"}
+    c = {"doc": "d3", "title": "C", "text": "c"}
+    # A is 1st in list one and 1st in list two; B and C each strong in only one
+    fused = app.rrf_fuse([[a, b, c], [a, c, b]])
+    assert fused[0]["title"] == "A"
+
+
+def test_rrf_fuse_surfaces_chunk_high_in_either_list():
+    a = {"doc": "d1", "title": "A", "text": "a"}
+    b = {"doc": "d2", "title": "B", "text": "b"}
+    # B is buried in list one but 1st in list two; it must not be last after fusion
+    long_tail = [{"doc": f"d{i}", "title": f"T{i}", "text": ""} for i in range(10)]
+    list_one = [a] + long_tail + [b]
+    list_two = [b, a]
+    fused = app.rrf_fuse([list_one, list_two])
+    titles = [c["title"] for c in fused]
+    assert titles.index("B") < titles.index("T9")
+
+
+def test_rrf_fuse_deduplicates_by_doc_and_title():
+    a1 = {"doc": "d1", "title": "A", "text": "from list one"}
+    a2 = {"doc": "d1", "title": "A", "text": "from list two"}
+    fused = app.rrf_fuse([[a1], [a2]])
+    assert len(fused) == 1
+
+
+def test_rrf_fuse_handles_empty_list():
+    a = {"doc": "d1", "title": "A", "text": "a"}
+    fused = app.rrf_fuse([[], [a]])
+    assert [c["title"] for c in fused] == ["A"]

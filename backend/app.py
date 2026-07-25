@@ -166,6 +166,31 @@ def lexical_retrieve(question: str) -> dict:
     return {"context": top, "confidence": confidence}
 
 
+RRF_K = 60  # Reciprocal Rank Fusion damping; 60 is the standard default
+
+
+def rrf_fuse(rankings: list[list[dict]]) -> list[dict]:
+    """Merge several ranked chunk-lists into one by Reciprocal Rank Fusion.
+
+    Each chunk scores 1 / (RRF_K + rank) for every list it appears in (rank
+    0-based), so a chunk ranked highly in either list surfaces even if the
+    other list buries it. Chunks are identified by (doc, title), so the same
+    section coming from the semantic index and the lexical corpus counts once.
+    """
+    scores: dict[tuple, float] = {}
+    first_seen: dict[tuple, dict] = {}
+    order: list[tuple] = []
+    for ranking in rankings:
+        for rank, chunk in enumerate(ranking):
+            key = (chunk["doc"], chunk["title"])
+            if key not in first_seen:
+                first_seen[key] = chunk
+                order.append(key)
+            scores[key] = scores.get(key, 0.0) + 1.0 / (RRF_K + rank)
+    order.sort(key=lambda k: -scores[k])
+    return [first_seen[k] for k in order]
+
+
 def retriever(state: State) -> dict:
     question = contextualize_query(state["messages"])
     if embed is None or INDEX is None:
