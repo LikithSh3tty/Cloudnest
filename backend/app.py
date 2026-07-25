@@ -148,7 +148,8 @@ def router(state: State) -> dict:
     return {"category": "billing" if billing >= technical else "technical"}
 
 def lexical_retrieve(question: str) -> dict:
-    """Token-overlap fallback used when the model or index is unavailable.
+    """Token-overlap scorer. Used both as a parallel retrieval branch and,
+    when the embedding model or index is unavailable, as the sole retriever.
 
     Its confidence is a matched-terms ratio, not a cosine similarity, so
     CONFIDENCE_THRESHOLD is only approximately meaningful on this path. That is
@@ -161,9 +162,14 @@ def lexical_retrieve(question: str) -> dict:
         matched = {t for t in terms if t in chunk_terms}
         scored.append((sum(chunk_terms.count(t) for t in matched), len(matched), chunk))
     scored.sort(key=lambda s: (-s[0], s[2]["doc"]))
+    ranking = [c for _, _, c in scored]
     top = [c for score, _, c in scored[:TOP_K] if score > 0]
     confidence = scored[0][1] / len(terms) if terms and scored else 0.0
-    return {"context": top, "confidence": confidence}
+    # A strong exact-keyword signal: the top chunk hit >= 2 distinct query
+    # terms. Consumed by the gate to rescue a borderline-confidence answer
+    # that the embedding underscored (e.g. an exact product/CLI name).
+    rescue = bool(scored and scored[0][1] >= 2)
+    return {"context": top, "confidence": confidence, "ranking": ranking, "rescue": rescue}
 
 
 RRF_K = 60  # Reciprocal Rank Fusion damping; 60 is the standard default
@@ -191,22 +197,53 @@ def rrf_fuse(rankings: list[list[dict]]) -> list[dict]:
     return [first_seen[k] for k in order]
 
 
-def retriever(state: State) -> dict:
-    question = contextualize_query(state["messages"])
+def semantic_retrieve(question: str) -> dict:
+    """Cosine-rank the whole corpus against the question.
+
+    Returns the full ranking and the top-1 cosine as confidence. On a missing
+    or broken model/index, returns an empty ranking and 0.0 - the lexical
+    branch then carries the turn and supplies confidence (see fuse_results).
+    """
     if embed is None or INDEX is None:
-        return lexical_retrieve(question)
+        return {"ranking": [], "confidence": 0.0}
     try:
         vectors, meta = INDEX
         # rows and the query are both L2-normalized, so this dot product is cosine
         scores = vectors @ embed([question])[0]
-        top = np.argsort(-scores)[:TOP_K]
+        order = np.argsort(-scores)
         return {
-            "context": [meta[i] for i in top],
-            "confidence": float(scores[top[0]]),
+            "ranking": [meta[i] for i in order],
+            "confidence": float(scores[order[0]]),
         }
     except Exception as exc:
         print(f"semantic retrieval failed: {type(exc).__name__}")
-        return lexical_retrieve(question)
+        return {"ranking": [], "confidence": 0.0}
+
+
+def fuse_results(semantic: dict, lexical: dict) -> dict:
+    """Merge the semantic and lexical branches into the retrieval result.
+
+    context: RRF of the two rankings, capped at TOP_K, sent to the LLM and
+    used for citations. confidence: the semantic cosine top-1 when semantic
+    ran (preserves the calibrated 0.30 gate), else the lexical ratio so the
+    bot still answers in fully-degraded mode. lexical_rescue: passed through
+    for the gate's borderline rescue rule.
+    """
+    context = rrf_fuse([semantic["ranking"], lexical["ranking"]])[:TOP_K]
+    confidence = semantic["confidence"] if semantic["ranking"] else lexical["confidence"]
+    return {"context": context, "confidence": confidence,
+            "lexical_rescue": lexical["rescue"]}
+
+
+def retriever(state: State) -> dict:
+    """Non-graph convenience: run both branches and fuse, in one call.
+
+    The compiled graph runs the branches as parallel nodes instead (see
+    build_app), but this keeps a single synchronous entry point for tests and
+    the CLI.
+    """
+    question = contextualize_query(state["messages"])
+    return fuse_results(semantic_retrieve(question), lexical_retrieve(question))
 
 SUPPORT_SYSTEM_PROMPT = """You are the official AI support assistant for CloudNest.
 

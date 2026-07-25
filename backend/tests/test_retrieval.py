@@ -236,3 +236,42 @@ def test_rrf_fuse_handles_empty_list():
     a = {"doc": "d1", "title": "A", "text": "a"}
     fused = app.rrf_fuse([[], [a]])
     assert [c["title"] for c in fused] == ["A"]
+
+
+def test_semantic_retrieve_returns_full_ranking_and_cosine_confidence():
+    r = app.semantic_retrieve("how much does the pro plan cost")
+    assert len(r["ranking"]) == len(app.CHUNKS)  # full corpus, ranked
+    assert 0.0 < r["confidence"] <= 1.0
+
+
+def test_semantic_retrieve_empty_when_index_missing(monkeypatch):
+    monkeypatch.setattr(app, "INDEX", None)
+    r = app.semantic_retrieve("refund")
+    assert r["ranking"] == []
+    assert r["confidence"] == 0.0
+
+
+def test_lexical_retrieve_now_exposes_ranking_and_rescue():
+    r = app.lexical_retrieve("cloudnest-cli linux automation")
+    assert r["context"]                       # existing contract preserved
+    assert 0.0 <= r["confidence"] <= 1.0       # existing contract preserved
+    assert len(r["ranking"]) == len(app.CHUNKS)
+    assert isinstance(r["rescue"], bool)
+
+
+def test_fuse_uses_semantic_confidence_when_available():
+    semantic = {"ranking": [{"doc": "d", "title": "A", "text": ""}], "confidence": 0.44}
+    lexical = {"ranking": [{"doc": "d", "title": "A", "text": ""}],
+               "confidence": 1.0, "context": [], "rescue": True}
+    fused = app.fuse_results(semantic, lexical)
+    assert fused["confidence"] == 0.44         # cosine wins, not the lexical ratio
+    assert fused["lexical_rescue"] is True
+
+
+def test_fuse_falls_back_to_lexical_confidence_when_degraded():
+    semantic = {"ranking": [], "confidence": 0.0}
+    lexical = {"ranking": [{"doc": "d", "title": "A", "text": ""}],
+               "confidence": 0.8, "context": [], "rescue": False}
+    fused = app.fuse_results(semantic, lexical)
+    assert fused["confidence"] == 0.8          # degraded mode keeps answering
+    assert fused["context"]                    # lexical ranking carries context
