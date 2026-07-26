@@ -55,7 +55,15 @@ The backend is a LangGraph `StateGraph` with eight nodes: a router, two retrieve
               responder clarify deflect
 ```
 
-A first explicit request for a human ("let me talk to a person", "get me an agent", "connect me to a representative") doesn't escalate straight away. It routes to the deflect node, which offers to help right there first, since the bot usually can. Only if the user still asks for a person after that does the gate escalate. Escalation also fires on a repeated borderline miss (a real, in-scope question the bot couldn't get confident about two turns running). The escalate node builds a support ticket (id, timestamp, question, category, confidence, the full conversation, and a reason) and hands off rather than guessing further. That ticket comes back from the API today but isn't persisted anywhere yet — see [Things I'd add next](#things-id-add-next).
+A first explicit request for a human ("let me talk to a person", "get me an agent", "connect me to a representative") doesn't escalate straight away. It routes to the deflect node, which offers to help right there first, since the bot usually can. Only if the user still asks for a person after that does the gate escalate. Escalation also fires on a repeated borderline miss (a real, in-scope question the bot couldn't get confident about two turns running). The escalate node builds a support ticket (id, timestamp, question, category, confidence, the full conversation, and a reason) and hands off rather than guessing further. That ticket comes back from the API and is written to a Postgres `tickets` table on the way out, so the handoff survives the request. Support admins read the queue at [`/admin`](#admin-view).
+
+### Admin view
+
+Every escalated ticket is persisted to Postgres by `backend/tickets_store.py`, the only module that touches the database. `/admin` is a separate page (its own Vite entry and bundle — the chat bundle is untouched) showing the tickets newest-first, each row expandable to the full conversation that led to the handoff. It's read-only: there's no way to edit or delete a ticket from it.
+
+Access is a single shared password. The page sends it as an `X-Admin-Token` header to `GET /api/tickets`, never in the URL, and the backend compares it with `hmac.compare_digest`. That endpoint is closed by default: with no `ADMIN_PASSWORD` set it returns 503 and the admin page simply says it isn't configured.
+
+With no database configured at all, nothing breaks — `save_ticket` no-ops, `list_tickets` returns an empty list, and chat runs exactly as before. Persistence is also best-effort inside `/api/chat`: if the write fails, the user still gets their answer.
 
 `index.py` wraps that same graph in a FastAPI app so the React frontend can talk to it over `/api/chat`. `app.py` can also be run on its own as a command-line chat loop, which is the quickest way to poke at the logic without touching the frontend.
 
@@ -65,15 +73,16 @@ A first explicit request for a human ("let me talk to a person", "get me an agen
 Alliedworks/
 ├── backend/
 │   ├── app.py               # the LangGraph agent + CLI entry point
-│   ├── index.py             # FastAPI wrapper (/api/chat, /api/health)
+│   ├── index.py             # FastAPI wrapper (/api/chat, /api/health, /api/tickets)
+│   ├── tickets_store.py     # Postgres persistence for escalation tickets
 │   ├── embed.py             # local ONNX embedding function
 │   ├── build_index.py       # offline indexer — embeds cloudnest_docs/ into index.npz
 │   ├── calibrate.py         # measures the confidence threshold from real questions
 │   ├── index.npz            # committed embedding index (vectors + chunk metadata)
 │   ├── model/                # vendored int8 embedding model + tokenizer
-│   ├── tests/                # pytest suite (44 tests)
+│   ├── tests/                # pytest suite (56 tests)
 │   ├── requirements.txt
-│   └── requirements-dev.txt  # requirements.txt + pytest
+│   └── requirements-dev.txt  # requirements.txt + pytest + httpx
 ├── cloudnest_docs/          # the knowledge base — plain markdown
 │   ├── 01_product_overview.md
 │   ├── 02_pricing_billing.md
@@ -86,10 +95,13 @@ Alliedworks/
 │   ├── src/
 │   │   ├── App.jsx          # the chat UI
 │   │   ├── main.jsx
-│   │   └── app.css
+│   │   ├── app.css
+│   │   ├── admin.jsx        # read-only admin view of escalated tickets
+│   │   └── admin.css
 │   ├── index.html
+│   ├── admin.html           # second Vite entry, served at /admin
 │   ├── package.json
-│   └── vite.config.js       # dev proxy to the backend on :8000
+│   └── vite.config.js       # two build inputs + dev proxy to the backend on :8000
 ├── vercel.json              # builds both halves for deployment
 └── .env                     # ANTHROPIC_API_KEY lives here (gitignored)
 ```
@@ -143,7 +155,7 @@ Once it's running, [`EXAMPLE_QUESTIONS.md`](./EXAMPLE_QUESTIONS.md) has a curate
 
 ## API
 
-Two endpoints, both under `/api`.
+Three endpoints, all under `/api`.
 
 **`POST /api/chat`**
 
@@ -170,9 +182,11 @@ Response:
 }
 ```
 
-`clarified` and `escalated` tell you which branch of the graph answered (`clarified: true` means it asked you to add detail instead of answering; `escalated: true` means it handed the conversation off instead). `sources` lists the titles of the doc sections the answer was cited from — empty on either a clarify or an escalate, since neither is a doc-grounded answer. `ticket` carries the escalation record (id, timestamp, question, category, confidence, the full conversation, and a reason) when `escalated` is true, otherwise `null`. None of these are shown in the chat window; all exist for logging and debugging. The ticket is returned by the API but not yet written anywhere durable — see [Things I'd add next](#things-id-add-next).
+`clarified` and `escalated` tell you which branch of the graph answered (`clarified: true` means it asked you to add detail instead of answering; `escalated: true` means it handed the conversation off instead). `sources` lists the titles of the doc sections the answer was cited from — empty on either a clarify or an escalate, since neither is a doc-grounded answer. `ticket` carries the escalation record (id, timestamp, question, category, confidence, the full conversation, and a reason) when `escalated` is true, otherwise `null`. None of these are shown in the chat window; all exist for logging and debugging. The ticket is also persisted to Postgres on escalate and readable at [`/admin`](#admin-view).
 
 **`GET /api/health`** — returns `{ "mode": "claude" }` if a key is configured, `{ "mode": "extractive" }` otherwise, plus a `retrieval` field: `"semantic"` when the embedding index is loaded, or `"lexical"` when it has fallen back to keyword retrieval. The UI uses `mode` to set the status badge.
+
+**`GET /api/tickets`** — the escalated ticket list behind [`/admin`](#admin-view), newest first: `{ "tickets": [ ... ] }`, each entry shaped like the `ticket` object above. Authenticated with an `X-Admin-Token` header matched against `ADMIN_PASSWORD`; 401 if the token is missing or wrong, 503 if `ADMIN_PASSWORD` isn't set at all. Returns an empty list when no database is configured.
 
 ## How retrieval actually works
 
@@ -186,7 +200,9 @@ If that top score clears `0.30` (a constant near the top of `app.py`, chosen by 
 
 Retrieval actually runs as two parallel branches: the semantic ranking above, and a lexical (token-overlap) ranking of the same corpus. `fuse_results` merges the two full rankings with Reciprocal Rank Fusion (RRF) — a chunk scores `1 / (60 + rank)` per list it appears in, so a section ranked highly in either list surfaces even if the other list buries it — and that fused order is what's sent to the LLM and cited from. Confidence itself does not change: it's still the semantic cosine top-1 score, exactly as above. Fusion only reorders context and citations; it can also *rescue* a borderline-confidence answer when the lexical branch has a strong exact-keyword hit (two or more distinct query terms matched in the top chunk), which is how a query like "cloudnest-cli" still gets answered even if the embedding alone scored it under `0.30`.
 
-Below the gate sits a second, lower floor: `ESCALATE_FLOOR` (0.27, set in `app.py` just above the measured out-of-scope ceiling from `backend/calibrate.py`). A question scoring between the floor and `0.30` is borderline and in-scope — the first time, it gets the clarify prompt; if the *next* turn is still borderline after that, or if the user explicitly asks for a human ("agent", "person", "representative", "ticket", "escalate"), it escalates to a support ticket instead of clarifying again. Anything scoring below the floor is treated as off-topic noise and can only clarify, never escalate, no matter how many times it repeats — so two turns of "cat mouse banana" never opens a ticket. That's about score-driven escalation only: an explicit request to reach a human (a handoff phrase like "talk to a person" or "get me an agent") always hands off regardless of score, since the floor guards against off-topic noise, not against a deliberate ask for a person.
+Below the gate sits a second, lower floor: `ESCALATE_FLOOR` (0.27, set in `app.py` just above the measured out-of-scope ceiling from `backend/calibrate.py`). A question scoring between the floor and `0.30` is borderline and in-scope — the first time, it gets the clarify prompt; if the *next* turn is still borderline after that, it escalates to a support ticket instead of clarifying again. Anything scoring below the floor is treated as off-topic noise and can only clarify, never escalate, no matter how many times it repeats — so two turns of "cat mouse banana" never opens a ticket. That's about score-driven escalation only: an explicit request to reach a human is handled separately and ignores the score entirely, since the floor guards against off-topic noise, not against a deliberate ask for a person — the first such request deflects, and a second one hands off.
+
+A request for a human is matched by intent rather than by a fixed phrase list: a word meaning *a human* (`human`, `agent`, `representative`, `person`, `someone`…) together with a word meaning *hand me over* (`connect`, `talk`, `speak`, `transfer`, `get`, `put`…). Exact-phrase matching kept missing natural variants — "connect to human" and "connect me to a representative" are the same ask — while a question that merely contains "person" with no handoff verb ("am I the only person seeing this") stays answerable.
 
 Before any of that, both `router()` and `retriever()` run the question through `contextualize_query()`, which folds the previous user turn onto the current one (capped at `CONTEXT_CHAR_CAP`, 200 characters) before it's embedded. A bare follow-up like "does it cost extra" carries no topic word of its own — alone it scores 0.285 (just under the threshold) and points at the wrong section; folded onto the turn before it ("I want to add two-factor authentication"), it scores 0.55 and finds the right one. Only the retrieval-facing query is folded — Claude still receives the full, unfolded conversation for generation, since it was never confused about "it"; only retrieval was.
 
@@ -204,12 +220,19 @@ Skipping this is safe but degrading: `app.py` fingerprints the docs and, on a mi
 
 `vercel.json` is set up to build the frontend as a static site and run `backend/index.py` as a Python serverless function, with `/api/*` routed to the backend and everything else falling through to the SPA. `ANTHROPIC_API_KEY` is set as an environment variable in the Vercel project (Preview and Production). The project is linked to GitHub, so every push to `main` triggers a fresh production deployment automatically.
 
+Two more environment variables turn on ticket persistence and the admin view. Both are optional — without them the app runs exactly as it did before, it just stores nothing and keeps `/admin` closed.
+
+- **`DATABASE_URL`** (or **`POSTGRES_URL`**) — add a Neon Postgres integration from the Vercel Marketplace, which injects the connection string into the project. Either name works; `DATABASE_URL` wins if both are set. The `tickets` table is created automatically on first boot by `init_db()`, so there's no migration step.
+- **`ADMIN_PASSWORD`** — set it in the Vercel project env (and in the local `.env` for dev) to enable `/admin`. Without it, `GET /api/tickets` returns 503 and the admin page says so.
+
+Post-deploy check: open `/admin`, sign in with `ADMIN_PASSWORD`, and confirm the list loads. Then insist on a human in the chat (ask once, decline the offer to help, ask again) and confirm the new ticket appears.
+
 Live at **[cloudnest-nine.vercel.app](https://cloudnest-nine.vercel.app)**. `/api/health` there currently reports `{"mode": "claude", "retrieval": "semantic"}`, so the embedding index and the API key are both loading correctly in production. The deployed function, model and all, measures 79.83 MB per Vercel's own build output, comfortably inside the 250 MB serverless function limit.
 
 ## Things I'd add next
 
-- Persist escalation tickets. The escalate node builds a full ticket dict and the API returns it, but nothing writes it to a database yet — it's generated per-request and discarded once the response goes out. A real datastore plus a small admin view to work the queue is the next subsystem.
+- Make the admin queue workable rather than readable. Tickets persist and `/admin` lists them, but there's no way to assign, annotate, or close one — and no per-admin login, just a single shared password. Real accounts and ticket state are the next step.
 - A stronger embedding model, and a real retrieval strategy (a stronger fusion/rerank than plain RRF, not just a bigger fixed cutoff) once the corpus outgrows `SMALL_CORPUS_LIMIT`. `FALLBACK_TOP_K` in `app.py` is a placeholder, not a tuned value — a fixed cutoff has the same failure mode the whole-corpus change just fixed, just at a different scale.
 - Persist conversations server-side so history doesn't have to round-trip through the browser.
 - Re-run `backend/calibrate.py` against real production questions once there's traffic. The current threshold is calibrated from a 16-question probe set, which is a reasonable start but not the same as live data.
-- Frontend tests. The backend has 44 pytest cases around the router, the parallel retrievers, fusion, the gate, and the index; the React side is only checked by hand.
+- Frontend tests. The backend has 56 pytest cases around the router, the parallel retrievers, fusion, the gate, the index, the ticket store, and the API's auth gate; the React side, chat and admin both, is only checked by hand.

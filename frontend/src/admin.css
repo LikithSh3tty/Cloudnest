@@ -1,0 +1,181 @@
+:root {
+  --admin-bg: #0f1115;
+  --admin-panel: #171a21;
+  --admin-line: #262b34;
+  --admin-text: #e6e8ec;
+  --admin-dim: #8b93a1;
+  --admin-accent: #6ea8fe;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--admin-bg);
+  color: var(--admin-text);
+  font-family: "Hanken Grotesk", system-ui, sans-serif;
+}
+
+.admin-login {
+  max-width: 22rem;
+  margin: 15vh auto 0;
+  padding: 2rem;
+  background: var(--admin-panel);
+  border: 1px solid var(--admin-line);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.admin-login h1 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.admin-login p {
+  margin: 0;
+  color: var(--admin-dim);
+  font-size: 0.9rem;
+}
+
+.admin-login input,
+.admin-login button {
+  padding: 0.6rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--admin-line);
+  font-size: 0.95rem;
+}
+
+.admin-login input {
+  background: var(--admin-bg);
+  color: var(--admin-text);
+}
+
+.admin-login button {
+  background: var(--admin-accent);
+  color: #0b0d10;
+  border: none;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.admin-error {
+  color: #ff8080;
+  font-size: 0.85rem;
+}
+
+.admin-wrap {
+  max-width: 60rem;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 4rem;
+}
+
+.admin-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  padding: 0.5rem 0 1rem;
+  border-bottom: 1px solid var(--admin-line);
+}
+
+.admin-header h1 {
+  font-size: 1.15rem;
+  margin: 0;
+}
+
+.admin-count {
+  color: var(--admin-dim);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.9rem;
+}
+
+.admin-empty {
+  color: var(--admin-dim);
+  padding: 2rem 0;
+  text-align: center;
+}
+
+.admin-ticket {
+  border-bottom: 1px solid var(--admin-line);
+}
+
+.admin-ticket-head {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 11rem 6rem 9rem 3rem 1fr;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.75rem 0.25rem;
+  background: none;
+  border: none;
+  color: var(--admin-text);
+  text-align: left;
+  cursor: pointer;
+  font-size: 0.88rem;
+}
+
+.admin-ticket-head:hover {
+  background: var(--admin-panel);
+}
+
+.admin-when,
+.admin-conf {
+  color: var(--admin-dim);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.8rem;
+}
+
+.admin-reason {
+  color: var(--admin-accent);
+  font-size: 0.8rem;
+}
+
+.admin-q {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-convo {
+  padding: 0.5rem 0.25rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.admin-msg {
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  background: var(--admin-panel);
+  border: 1px solid var(--admin-line);
+}
+
+.admin-msg-user {
+  border-left: 2px solid var(--admin-accent);
+}
+
+.admin-role {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--admin-dim);
+  margin-bottom: 0.25rem;
+}
+
+.admin-body :first-child {
+  margin-top: 0;
+}
+
+.admin-body :last-child {
+  margin-bottom: 0;
+}
+
+@media (max-width: 640px) {
+  .admin-ticket-head {
+    grid-template-columns: 1fr;
+    gap: 0.15rem;
+  }
+}
