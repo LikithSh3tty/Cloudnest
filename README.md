@@ -9,13 +9,9 @@
 
 **Live:** [cloudnest-nine.vercel.app](https://cloudnest-nine.vercel.app)
 
-Ask it *"how much will I be charged if I add a teammate mid-cycle"* and it answers out of the pricing docs — a section that shares **not one word** with the question. That gap is the whole point of this project.
+A support chatbot for a fictional cloud-storage product called CloudNest. You type a question in plain English, and it figures out whether you're asking about billing or something technical, pulls the relevant bits out of the product docs, and answers you like a real support engineer would. It runs on a small LangGraph state machine on the backend and a React chat window on the front.
 
-CloudNest is a fictional cloud-storage product. This is its support desk: a chatbot that reads the product documentation and answers like someone who has actually read it. It routes your question, searches by meaning rather than keywords, and writes back in a support engineer's voice. When it isn't confident, it says so instead of inventing something. When you ask for a human, it offers to try first — and if you insist, it opens a real ticket that lands in an admin queue with your name on it.
-
-The interesting constraint is that there's **no vector database and no embedding API**. The entire search index is a NumPy file committed to the repo: 46 doc sections in a 118 KB `index.npz`, embedded once ahead of time by a 23 MB quantized ONNX model that ships in the repo and runs inside the serverless function. Retrieval costs nothing per query, works offline, and has no third-party dependency to go down. Claude phrases the final answer when a key is present; without one, the same retrieval hands back the matching sections as clean Markdown. **There is no configuration under which it fails to answer** — the embedding model falling over drops it to keyword search, and a missing API key drops it to extractive mode, but the chat window never goes dark.
-
-That "answer or degrade, never break" rule is the thread running through the whole thing, and it's mostly what the 78 tests are protecting.
+Retrieval is real semantic search: every doc section is embedded ahead of time by a small local model, no vector database or embedding provider involved, and matched against your question by cosine similarity. See [How retrieval actually works](#how-retrieval-actually-works) below for the full story, including the keyword-based fallback it degrades to if the model or index can't load. If the API key is present it uses Claude to phrase the final answer, written to sound like a person rather than an AI model; if not, it hands you back the matching sections as clean Markdown. Either way you always get an answer.
 
 ## What it does
 
