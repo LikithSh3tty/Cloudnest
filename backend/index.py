@@ -58,11 +58,19 @@ def health():
 
 
 @app.get("/api/tickets")
-def tickets(x_admin_token: str | None = Header(default=None)):
+def tickets(x_admin_user: str | None = Header(default=None),
+            x_admin_token: str | None = Header(default=None)):
     password = os.environ.get("ADMIN_PASSWORD")
     if not password:
         # Closed by default: no admin password configured means no admin access.
         raise HTTPException(status_code=503, detail="admin not configured")
-    if not x_admin_token or not hmac.compare_digest(x_admin_token, password):
+    username = os.environ.get("ADMIN_USERNAME", "admin")
+    # Both halves must match, and both are compared in constant time. Checking
+    # them in one expression avoids answering "was the username right?"
+    # separately from "was the password right?".
+    ok = (x_admin_user and x_admin_token
+          and hmac.compare_digest(x_admin_user, username)
+          and hmac.compare_digest(x_admin_token, password))
+    if not ok:
         raise HTTPException(status_code=401, detail="unauthorized")
     return {"tickets": tickets_store.list_tickets()}

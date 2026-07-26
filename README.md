@@ -61,7 +61,9 @@ A first explicit request for a human ("let me talk to a person", "get me an agen
 
 Every escalated ticket is persisted to Postgres by `backend/tickets_store.py`, the only module that touches the database. `/admin` is a separate page (its own Vite entry and bundle — the chat bundle is untouched) showing the tickets newest-first, each row expandable to the full conversation that led to the handoff. It's read-only: there's no way to edit or delete a ticket from it.
 
-Access is a single shared password. The page sends it as an `X-Admin-Token` header to `GET /api/tickets`, never in the URL, and the backend compares it with `hmac.compare_digest`. That endpoint is closed by default: with no `ADMIN_PASSWORD` set it returns 503 and the admin page simply says it isn't configured.
+Getting in takes a username and a password. The chat sidebar has an **Admin login** link down at the bottom; it goes to `/admin`, which asks for both. The username defaults to `admin` and is overridable with `ADMIN_USERNAME`; the password is `ADMIN_PASSWORD`. Credentials travel as `X-Admin-User` and `X-Admin-Token` headers, never in the URL, and both are compared with `hmac.compare_digest` in a single expression — a wrong username and a wrong password are indistinguishable from the outside, both just 401. The session lives in `sessionStorage` and there's a Sign out button. The endpoint is closed by default: with no `ADMIN_PASSWORD` set it returns 503 and the admin page says it isn't configured.
+
+This is a shared credential, not real accounts — it gates the queue, it doesn't identify who opened it.
 
 With no database configured at all, nothing breaks — `save_ticket` no-ops, `list_tickets` returns an empty list, and chat runs exactly as before. Persistence is also best-effort inside `/api/chat`: if the write fails, the user still gets their answer.
 
@@ -80,7 +82,7 @@ Alliedworks/
 │   ├── calibrate.py         # measures the confidence threshold from real questions
 │   ├── index.npz            # committed embedding index (vectors + chunk metadata)
 │   ├── model/                # vendored int8 embedding model + tokenizer
-│   ├── tests/                # pytest suite (61 tests)
+│   ├── tests/                # pytest suite (65 tests)
 │   ├── requirements.txt
 │   └── requirements-dev.txt  # requirements.txt + pytest + httpx
 ├── cloudnest_docs/          # the knowledge base — plain markdown
@@ -188,7 +190,7 @@ Response:
 
 **`GET /api/health`** — returns `{ "mode": "claude" }` if a key is configured, `{ "mode": "extractive" }` otherwise, plus a `retrieval` field: `"semantic"` when the embedding index is loaded, or `"lexical"` when it has fallen back to keyword retrieval. The UI uses `mode` to set the status badge.
 
-**`GET /api/tickets`** — the escalated ticket list behind [`/admin`](#admin-view), newest first: `{ "tickets": [ ... ] }`, each entry shaped like the `ticket` object above. Authenticated with an `X-Admin-Token` header matched against `ADMIN_PASSWORD`; 401 if the token is missing or wrong, 503 if `ADMIN_PASSWORD` isn't set at all. Returns an empty list when no database is configured.
+**`GET /api/tickets`** — the escalated ticket list behind [`/admin`](#admin-view), newest first: `{ "tickets": [ ... ] }`, each entry shaped like the `ticket` object above. Authenticated with `X-Admin-User` (matched against `ADMIN_USERNAME`, default `admin`) and `X-Admin-Token` (matched against `ADMIN_PASSWORD`); 401 if either is missing or wrong, 503 if `ADMIN_PASSWORD` isn't set at all. Returns an empty list when no database is configured.
 
 ## How retrieval actually works
 
@@ -226,6 +228,7 @@ Two more environment variables turn on ticket persistence and the admin view. Bo
 
 - **`DATABASE_URL`** (or **`POSTGRES_URL`**) — add a Neon Postgres integration from the Vercel Marketplace, which injects the connection string into the project. Either name works; `DATABASE_URL` wins if both are set. The `tickets` table is created automatically on first boot by `init_db()`, so there's no migration step.
 - **`ADMIN_PASSWORD`** — set it in the Vercel project env (and in the local `.env` for dev) to enable `/admin`. Without it, `GET /api/tickets` returns 503 and the admin page says so.
+- **`ADMIN_USERNAME`** — optional, defaults to `admin`. Set it only if you want a different login name.
 
 Post-deploy check: open `/admin`, sign in with `ADMIN_PASSWORD`, and confirm the list loads. Then insist on a human in the chat (ask once, decline the offer to help, ask again) and confirm the new ticket appears.
 
@@ -237,4 +240,4 @@ Live at **[cloudnest-nine.vercel.app](https://cloudnest-nine.vercel.app)**. `/ap
 - A stronger embedding model, and a real retrieval strategy (a stronger fusion/rerank than plain RRF, not just a bigger fixed cutoff) once the corpus outgrows `SMALL_CORPUS_LIMIT`. `FALLBACK_TOP_K` in `app.py` is a placeholder, not a tuned value — a fixed cutoff has the same failure mode the whole-corpus change just fixed, just at a different scale.
 - Persist conversations server-side so history doesn't have to round-trip through the browser.
 - Re-run `backend/calibrate.py` against real production questions once there's traffic. The current threshold is calibrated from a 16-question probe set, which is a reasonable start but not the same as live data.
-- Frontend tests. The backend has 61 pytest cases around the router, the parallel retrievers, fusion, the gate, the index, the ticket store, and the API's auth gate; the React side, chat and admin both, is only checked by hand.
+- Frontend tests. The backend has 65 pytest cases around the router, the parallel retrievers, fusion, the gate, the index, the ticket store, and the API's auth gate; the React side, chat and admin both, is only checked by hand.

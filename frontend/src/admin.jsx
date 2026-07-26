@@ -5,26 +5,38 @@ import remarkGfm from "remark-gfm";
 import "./admin.css";
 
 function Login({ onSubmit, error }) {
+  const [user, setUser] = useState("");
   const [pw, setPw] = useState("");
   return (
     <form
       className="admin-login"
       onSubmit={(e) => {
         e.preventDefault();
-        onSubmit(pw);
+        onSubmit(user, pw);
       }}
     >
       <h1>CloudNest Admin</h1>
-      <p>Enter the admin password to view escalated tickets.</p>
+      <p>Admins only. Sign in to view escalated tickets.</p>
+      <input
+        type="text"
+        value={user}
+        onChange={(e) => setUser(e.target.value)}
+        placeholder="Username"
+        autoComplete="username"
+        autoFocus
+      />
       <input
         type="password"
         value={pw}
         onChange={(e) => setPw(e.target.value)}
         placeholder="Password"
-        autoFocus
+        autoComplete="current-password"
       />
       <button type="submit">Sign in</button>
       {error && <div className="admin-error">{error}</div>}
+      <a className="admin-back" href="/">
+        Back to support
+      </a>
     </form>
   );
 }
@@ -63,15 +75,18 @@ function Admin() {
   const [openId, setOpenId] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  async function load(token) {
+  async function load(user, token) {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch("/api/tickets", { headers: { "X-Admin-Token": token } });
+      const res = await fetch("/api/tickets", {
+        headers: { "X-Admin-User": user, "X-Admin-Token": token },
+      });
       if (res.status === 401) {
+        sessionStorage.removeItem("adminUser");
         sessionStorage.removeItem("adminToken");
         setAuthed(false);
-        setError("Wrong password.");
+        setError("Wrong username or password.");
         return;
       }
       if (res.status === 503) {
@@ -85,6 +100,7 @@ function Admin() {
         return;
       }
       const data = await res.json();
+      sessionStorage.setItem("adminUser", user);
       sessionStorage.setItem("adminToken", token);
       setTickets(data.tickets || []);
       setAuthed(true);
@@ -96,9 +112,17 @@ function Admin() {
     }
   }
 
+  function signOut() {
+    sessionStorage.removeItem("adminUser");
+    sessionStorage.removeItem("adminToken");
+    setTickets([]);
+    setAuthed(false);
+  }
+
   useEffect(() => {
-    const saved = sessionStorage.getItem("adminToken");
-    if (saved) load(saved);
+    const user = sessionStorage.getItem("adminUser");
+    const token = sessionStorage.getItem("adminToken");
+    if (user && token) load(user, token);
   }, []);
 
   if (!authed) return <Login onSubmit={load} error={error} />;
@@ -108,6 +132,9 @@ function Admin() {
       <header className="admin-header">
         <h1>Escalated tickets</h1>
         <span className="admin-count">{tickets.length}</span>
+        <button type="button" className="admin-signout" onClick={signOut}>
+          Sign out
+        </button>
       </header>
       {loading && <div className="admin-empty">Loading…</div>}
       {!loading && tickets.length === 0 && <div className="admin-empty">No tickets yet.</div>}

@@ -36,6 +36,15 @@ function PlusIcon() {
   );
 }
 
+function LockIcon() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect x="4" y="10" width="16" height="10" rx="2" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function SendIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -198,10 +207,12 @@ export default function App() {
           </button>
         </nav>
 
-        <p className="sidebar-foot">
-          A quieter support experience, designed to keep the answer, not the interface, at
-          the centre.
-        </p>
+        <div className="sidebar-foot">
+          <a className="admin-login-link" href="/admin">
+            <LockIcon />
+            Admin login
+          </a>
+        </div>
       </aside>
 
       <main className="main">
