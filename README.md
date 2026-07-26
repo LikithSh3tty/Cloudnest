@@ -69,7 +69,9 @@ The trick is that the page doesn't decide who you are — the server does. Whate
 
 Admin credentials are `ADMIN_USERNAME` (default `admin`) and `ADMIN_PASSWORD`, sent as `X-Admin-User` and `X-Admin-Token` headers, never in the URL, and compared with `hmac.compare_digest` in a single expression — a wrong username and a wrong password are indistinguishable from outside, both just 401. `/admin` has no login form of its own: without an admin session it bounces you to the front page.
 
-**Ordinary sign-in is deliberately fake.** Any username and password is accepted, no account exists, nothing is stored, and the session dies with the tab. It exists to put a name on a ticket so the admin view has something real to show — it is not authentication, and nothing a user sees is protected by it. Only the admin half is checked, and only server-side.
+**Ordinary sign-in is deliberately fake.** Any username and password is accepted and no account exists anywhere on the server. It exists to put a name on a ticket so the admin view has something real to show — it is not authentication, and nothing a user sees is protected by it. Only the admin half is checked, and only server-side.
+
+The session is held in `localStorage` under `cloudnest.session`, so you stay signed in across tabs and browser restarts until you press Sign out. For an admin that means the password is written to disk rather than kept for the tab — the trade for not retyping it every visit, and worth knowing before using a real password on a shared machine.
 
 ### What the admin sees
 

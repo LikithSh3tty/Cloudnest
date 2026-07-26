@@ -1,13 +1,17 @@
 // One sign-in for both roles. Nothing here is real authentication for an
-// ordinary user: the browser asserts a name, no account exists, and the session
-// dies with the tab. Only the admin half is checked, and it is checked by the
-// server - we try the admin endpoint with whatever was typed, and let the 200
-// or 401 decide. That keeps the admin username out of this bundle entirely.
+// ordinary user: the browser asserts a name and no account exists. Only the
+// admin half is checked, and it is checked by the server - we try the admin
+// endpoint with whatever was typed, and let the 200 or 401 decide. That keeps
+// the admin username out of this bundle entirely.
+//
+// Stored in localStorage, so you stay signed in across tabs and restarts until
+// you sign out. That also means the admin password sits on disk for the admin
+// session, which is the trade for not retyping it every visit.
 const KEY = "cloudnest.session";
 
 export function loadSession() {
   try {
-    const raw = sessionStorage.getItem(KEY);
+    const raw = localStorage.getItem(KEY);
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
@@ -15,7 +19,7 @@ export function loadSession() {
 }
 
 export function clearSession() {
-  sessionStorage.removeItem(KEY);
+  localStorage.removeItem(KEY);
 }
 
 export async function signIn(username, password) {
@@ -32,9 +36,9 @@ export async function signIn(username, password) {
     username,
     signedInAt: new Date().toISOString(),
     isAdmin,
-    // the password is kept only when it unlocks something, and only for the tab
+    // the password is kept only when it actually unlocks something
     token: isAdmin ? password : null,
   };
-  sessionStorage.setItem(KEY, JSON.stringify(session));
+  localStorage.setItem(KEY, JSON.stringify(session));
   return session;
 }

@@ -17,19 +17,6 @@ function ChatIcon() {
   );
 }
 
-function BookIcon() {
-  return (
-    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M5 6h6a1 1 0 0 1 1 1v11H6a1 1 0 0 1-1-1V6ZM19 6h-6a1 1 0 0 0-1 1v11h6a1 1 0 0 0 1-1V6Z"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
 function PlusIcon() {
   return (
     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -216,10 +203,6 @@ export default function App() {
             <ChatIcon />
             Conversation
           </button>
-          <button type="button" className="nav-item" onClick={() => send("What can you help me with?")}>
-            <BookIcon />
-            Help centre
-          </button>
           <button type="button" className="nav-item" onClick={newRequest}>
             <PlusIcon />
             New request
@@ -312,17 +295,6 @@ export default function App() {
       </main>
 
       <aside className="context">
-        <div className="ctx-block">
-          <span className="eyebrow">This conversation</span>
-          <p className="ctx-value">CloudNest support</p>
-          <p className="ctx-note">
-            Answers stay focused on what you asked. Account details appear here when they add
-            useful context.
-          </p>
-        </div>
-
-        <div className="ctx-divider" />
-
         <div className="ctx-block">
           <span className="eyebrow">Related guidance</span>
           <div className="ctx-links">
