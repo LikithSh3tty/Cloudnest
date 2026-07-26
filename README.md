@@ -80,7 +80,7 @@ Alliedworks/
 │   ├── calibrate.py         # measures the confidence threshold from real questions
 │   ├── index.npz            # committed embedding index (vectors + chunk metadata)
 │   ├── model/                # vendored int8 embedding model + tokenizer
-│   ├── tests/                # pytest suite (56 tests)
+│   ├── tests/                # pytest suite (61 tests)
 │   ├── requirements.txt
 │   └── requirements-dev.txt  # requirements.txt + pytest + httpx
 ├── cloudnest_docs/          # the knowledge base — plain markdown
@@ -124,6 +124,8 @@ ANTHROPIC_API_KEY=your_key_here
 ```
 
 The key is optional. Without it the agent still runs, it just returns the matched doc sections as Markdown instead of a Claude-written answer. Handy if you want to see exactly what retrieval is pulling.
+
+Both `.env` and `.env.local` are read, `.env.local` taking precedence, and a real shell variable beating both. That means `vercel env pull` — which writes `.env.local` — drops the Neon connection string straight into local dev with nothing to copy by hand. Surrounding quotes are stripped, since the CLI writes `KEY="value"` and a quoted DSN can never connect.
 
 Then start the API:
 
@@ -235,4 +237,4 @@ Live at **[cloudnest-nine.vercel.app](https://cloudnest-nine.vercel.app)**. `/ap
 - A stronger embedding model, and a real retrieval strategy (a stronger fusion/rerank than plain RRF, not just a bigger fixed cutoff) once the corpus outgrows `SMALL_CORPUS_LIMIT`. `FALLBACK_TOP_K` in `app.py` is a placeholder, not a tuned value — a fixed cutoff has the same failure mode the whole-corpus change just fixed, just at a different scale.
 - Persist conversations server-side so history doesn't have to round-trip through the browser.
 - Re-run `backend/calibrate.py` against real production questions once there's traffic. The current threshold is calibrated from a 16-question probe set, which is a reasonable start but not the same as live data.
-- Frontend tests. The backend has 56 pytest cases around the router, the parallel retrievers, fusion, the gate, the index, the ticket store, and the API's auth gate; the React side, chat and admin both, is only checked by hand.
+- Frontend tests. The backend has 61 pytest cases around the router, the parallel retrievers, fusion, the gate, the index, the ticket store, and the API's auth gate; the React side, chat and admin both, is only checked by hand.

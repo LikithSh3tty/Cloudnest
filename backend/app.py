@@ -11,12 +11,32 @@ import numpy as np
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 
-ENV_FILE = Path(__file__).resolve().parent.parent / ".env"
-if ENV_FILE.exists():
-    for _line in ENV_FILE.read_text(encoding="utf-8").splitlines():
-        _key, _, _value = _line.partition("=")
-        if _key.strip() and not _line.lstrip().startswith("#"):
-            os.environ.setdefault(_key.strip(), _value.strip())
+_ROOT = Path(__file__).resolve().parent.parent
+# .env.local first: `vercel env pull` writes there, and the more specific file
+# should win (setdefault means whoever is read first sticks). A real shell
+# variable still beats both.
+ENV_FILES = (_ROOT / ".env.local", _ROOT / ".env")
+
+
+def _load_env_file(path: Path) -> None:
+    if not path.exists():
+        return
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.lstrip().startswith("#"):
+            continue
+        key, _, value = line.partition("=")
+        key, value = key.strip(), value.strip()
+        if not key:
+            continue
+        # `vercel env pull` writes KEY="value"; the quotes are delimiters, not
+        # part of the secret, and leaving them on quietly breaks a DSN.
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+            value = value[1:-1]
+        os.environ.setdefault(key, value)
+
+
+for _env_file in ENV_FILES:
+    _load_env_file(_env_file)
 DOCS_DIR = Path(__file__).resolve().parent.parent / "cloudnest_docs"
 # cosine similarity, chosen from backend/calibrate.py output
 CONFIDENCE_THRESHOLD = 0.30
