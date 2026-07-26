@@ -65,9 +65,15 @@ CLARIFY_BORDERLINE_MSG = (
     "straight there."
 )
 CLARIFY_OFFTOPIC_MSG = (
-    "I can really only help with CloudNest itself, things like your plan, "
-    "billing, your account, or syncing and setup. Tell me what you're running "
-    "into with any of those and I'll take it from there."
+    "I'd like to help with that, though I should be straight with you: "
+    "CloudNest is really all I know about, so your plan and billing, your "
+    "account, or getting syncing and setup working. If any of that is what "
+    "you're after, tell me what's going on and I'll take it from there."
+)
+GREETING_MSG = (
+    "Hey, good to meet you. I look after CloudNest support, so anything to do "
+    "with your plan and billing, your account, or getting syncing and setup "
+    "behaving is fair game. What can I help you with?"
 )
 DEFLECT_MSG = (
     "I can almost certainly sort this out for you right here, and it's usually "
@@ -501,7 +507,39 @@ def _deflected_before(messages: list[dict]) -> bool:
                for m in messages[:-1])
 
 
+GREETING_WORDS = {
+    "hi", "hii", "hiya", "hello", "helo", "hey", "heya", "yo", "howdy",
+    "greetings", "morning", "afternoon", "evening", "namaste", "sup",
+}
+# "my name is ..." is an introduction, which is a greeting by another route
+GREETING_OPENERS = ("my name is", "this is ", "i am ", "i'm ", "how are you",
+                    "how's it going", "hows it going", "nice to meet")
+
+
+def _is_greeting(text: str) -> bool:
+    """True when the message is *only* a hello, with nothing to answer in it.
+
+    A greeting that carries a real question ("hi, my sync is broken") must not
+    match: saying hello back would drop the actual problem on the floor. So a
+    single product word anywhere disqualifies it, as does any message long
+    enough to be carrying content.
+    """
+    lowered = text.lower()
+    words = re.findall(r"[a-z']+", lowered)
+    if not words or len(words) > 8:
+        return False
+    if any(w in BILLING_WORDS or w in TECH_WORDS for w in words):
+        return False
+    return bool(GREETING_WORDS.intersection(words)) or any(
+        opener in lowered for opener in GREETING_OPENERS)
+
+
 def clarify(state: State) -> dict:
+    if state["confidence"] < ESCALATE_FLOOR and _is_greeting(state["messages"][-1]["content"]):
+        # Someone saying hello isn't off-topic noise, they just haven't got to
+        # the point yet. Greet them and invite the question.
+        return {"messages": [{"role": "assistant", "content": GREETING_MSG}],
+                "clarified": True, "escalate": False, "ticket": None}
     msg = CLARIFY_OFFTOPIC_MSG if state["confidence"] < ESCALATE_FLOOR else CLARIFY_BORDERLINE_MSG
     return {"messages": [{"role": "assistant", "content": msg}],
             "clarified": True, "escalate": False, "ticket": None}
