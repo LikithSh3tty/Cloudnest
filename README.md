@@ -9,9 +9,13 @@
 
 **Live:** [cloudnest-nine.vercel.app](https://cloudnest-nine.vercel.app)
 
-A support chatbot for a fictional cloud-storage product called CloudNest. You type a question in plain English, and it figures out whether you're asking about billing or something technical, pulls the relevant bits out of the product docs, and answers you like a real support engineer would. It runs on a small LangGraph state machine on the backend and a React chat window on the front.
+Ask it *"how much will I be charged if I add a teammate mid-cycle"* and it answers out of the pricing docs — a section that shares **not one word** with the question. That gap is the whole point of this project.
 
-Retrieval is real semantic search: every doc section is embedded ahead of time by a small local model, no vector database or embedding provider involved, and matched against your question by cosine similarity. See [How retrieval actually works](#how-retrieval-actually-works) below for the full story, including the keyword-based fallback it degrades to if the model or index can't load. If the API key is present it uses Claude to phrase the final answer, written to sound like a person rather than an AI model; if not, it hands you back the matching sections as clean Markdown. Either way you always get an answer.
+CloudNest is a fictional cloud-storage product. This is its support desk: a chatbot that reads the product documentation and answers like someone who has actually read it. It routes your question, searches by meaning rather than keywords, and writes back in a support engineer's voice. When it isn't confident, it says so instead of inventing something. When you ask for a human, it offers to try first — and if you insist, it opens a real ticket that lands in an admin queue with your name on it.
+
+The interesting constraint is that there's **no vector database and no embedding API**. The entire search index is a NumPy file committed to the repo: 46 doc sections in a 118 KB `index.npz`, embedded once ahead of time by a 23 MB quantized ONNX model that ships in the repo and runs inside the serverless function. Retrieval costs nothing per query, works offline, and has no third-party dependency to go down. Claude phrases the final answer when a key is present; without one, the same retrieval hands back the matching sections as clean Markdown. **There is no configuration under which it fails to answer** — the embedding model falling over drops it to keyword search, and a missing API key drops it to extractive mode, but the chat window never goes dark.
+
+That "answer or degrade, never break" rule is the thread running through the whole thing, and it's mostly what the 78 tests are protecting.
 
 ## What it does
 
@@ -22,38 +26,50 @@ Retrieval is real semantic search: every doc section is embedded ahead of time b
 - **Bails out honestly** when it isn't confident. Below a threshold calibrated against real questions (see `backend/calibrate.py`), it asks you to add detail rather than guessing.
 - **Keeps retrieval internals out of the UI.** The API still returns the route, confidence, and cited sources for every answer, but the chat window shows only the answer itself.
 - **Remembers the conversation.** The CLI keeps context across turns via a LangGraph checkpointer; the web version carries history in the browser since the serverless function is stateless.
-- **Understands follow-ups.** A reply like "does it cost extra" carries no topic word of its own — retrieval folds in the previous turn before embedding the question, so it still finds the right section instead of scoring below the confidence threshold or matching the wrong one.
+- **Understands follow-ups.** A reply like "does it cost extra" carries no topic word of its own — retrieval folds in the previous turn before embedding the question, so it still finds the right section instead of scoring below the confidence threshold or matching the wrong one. Greetings are skipped when folding, since a hello has no topic to inherit and mixing one in only drags the score down.
+- **Says hello back.** A message that is only a greeting gets greeted and invited to ask, rather than the out-of-scope reply. The check is narrow enough that "hi, my sync keeps failing" is still answered as the real question it is.
 
 ## How it's wired
 
-The backend is a LangGraph `StateGraph` with eight nodes: a router, two retrievers that run in parallel, a fusion step, and a four-way gate to a responder, a clarify, a deflect, or an escalate node. A question comes in, gets routed, gets matched against the docs by both a semantic and a lexical branch at once, and the two rankings are merged by Reciprocal Rank Fusion before the gate decides whether to answer, ask for more detail, offer to help in place of a human, or hand off to a human.
+The backend is a LangGraph `StateGraph` with eight nodes: a router, two retrievers that run in parallel, a fusion step, and four terminal nodes. What picks between those four isn't a node at all — it's a conditional edge off `fusion`, which is why the count is eight and not nine.
 
 ```
-                         question
-                            │
-                            ▼
-                        ┌────────┐
-                        │ router │
-                        └───┬────┘
-                 ┌──────────┴──────────┐   (run in parallel)
-                 ▼                     ▼
-         ┌───────────────┐   ┌──────────────┐
-         │ semantic_retr │   │ lexical_retr │
-         └───────┬───────┘   └──────┬───────┘
-                 └──────────┬────────┘
-                            ▼
-                        ┌────────┐
-                        │ fusion │   RRF merge, cosine confidence
-                        └───┬────┘
-                            ▼
-                    ┌───────────────┐
-                    │ gate (2 floor)│
-                    └──┬──┬──┬──┬────┘
-              conf≥0.30│  │  │  │ 1st human request ─► deflect (try me first)
-              or rescue│  │  │  └ insisted / 2nd borderline miss ─► escalate ─► ticket
-                       ▼  ▼  ▼
-              responder clarify deflect
+                            question
+                               │
+                               ▼
+                          ┌─────────┐
+                          │ router  │  billing / technical / general
+                          └────┬────┘
+                  ┌────────────┴────────────┐        (in parallel)
+                  ▼                         ▼
+        ┌───────────────────┐     ┌───────────────────┐
+        │ semantic_retriever│     │ lexical_retriever │
+        │   cosine on 46    │     │   token overlap   │
+        │  embedded sections│     │  + synonym map    │
+        └─────────┬─────────┘     └─────────┬─────────┘
+                  └────────────┬────────────┘
+                               ▼
+                          ┌─────────┐
+                          │ fusion  │  RRF merge; confidence = cosine top-1
+                          └────┬────┘
+                               │  picker (a conditional edge, not a node)
+            ┌────────────┬─────┴──────┬────────────┐
+            ▼            ▼            ▼            ▼
+      ┌───────────┐ ┌─────────┐ ┌─────────┐ ┌──────────┐
+      │ responder │ │ clarify │ │ deflect │ │ escalate │
+      └───────────┘ └─────────┘ └─────────┘ └────┬─────┘
+                                                 ▼
+                                            ticket ─► Postgres ─► /admin
 ```
+
+Which branch the picker takes:
+
+| Branch | When |
+|---|---|
+| `responder` | confidence ≥ `0.30`, or a lexical rescue pulls a borderline score up |
+| `clarify` | under `0.30`. A greeting gets greeted, anything under the `0.27` floor gets the out-of-scope reply, and a borderline in-scope question gets asked for detail |
+| `deflect` | a first explicit request for a human — offers to help before handing over |
+| `escalate` | the user insisted after a deflect, or missed borderline twice running |
 
 A first explicit request for a human ("let me talk to a person", "get me an agent", "connect me to a representative") doesn't escalate straight away. It routes to the deflect node, which offers to help right there first, since the bot usually can. Only if the user still asks for a person after that does the gate escalate. Escalation also fires on a repeated borderline miss (a real, in-scope question the bot couldn't get confident about two turns running). The escalate node builds a support ticket (id, timestamp, question, category, confidence, the full conversation, and a reason) and hands off rather than guessing further. That ticket comes back from the API and is written to a Postgres `tickets` table on the way out, so the handoff survives the request. Support admins read the queue at [`/admin`](#admin-view).
 
@@ -94,7 +110,7 @@ Alliedworks/
 │   ├── calibrate.py         # measures the confidence threshold from real questions
 │   ├── index.npz            # committed embedding index (vectors + chunk metadata)
 │   ├── model/                # vendored int8 embedding model + tokenizer
-│   ├── tests/                # pytest suite (74 tests)
+│   ├── tests/                # pytest suite (78 tests)
 │   ├── requirements.txt
 │   └── requirements-dev.txt  # requirements.txt + pytest + httpx
 ├── cloudnest_docs/          # the knowledge base — plain markdown
@@ -248,7 +264,7 @@ Two more environment variables turn on ticket persistence and the admin view. Bo
 
 Post-deploy check: open `/admin`, sign in with `ADMIN_PASSWORD`, and confirm the list loads. Then insist on a human in the chat (ask once, decline the offer to help, ask again) and confirm the new ticket appears.
 
-Live at **[cloudnest-nine.vercel.app](https://cloudnest-nine.vercel.app)**. `/api/health` there currently reports `{"mode": "claude", "retrieval": "semantic"}`, so the embedding index and the API key are both loading correctly in production. The deployed function, model and all, measures 79.83 MB per Vercel's own build output, comfortably inside the 250 MB serverless function limit.
+Live at **[cloudnest-nine.vercel.app](https://cloudnest-nine.vercel.app)**. `/api/health` there currently reports `{"mode": "claude", "retrieval": "semantic"}`, so the embedding index and the API key are both loading correctly in production. The deployed function, model and all, measures 56.99 MB per `vercel inspect`, comfortably inside the 250 MB serverless function limit.
 
 ## Things I'd add next
 
@@ -256,4 +272,4 @@ Live at **[cloudnest-nine.vercel.app](https://cloudnest-nine.vercel.app)**. `/ap
 - A stronger embedding model, and a real retrieval strategy (a stronger fusion/rerank than plain RRF, not just a bigger fixed cutoff) once the corpus outgrows `SMALL_CORPUS_LIMIT`. `FALLBACK_TOP_K` in `app.py` is a placeholder, not a tuned value — a fixed cutoff has the same failure mode the whole-corpus change just fixed, just at a different scale.
 - Persist conversations server-side so history doesn't have to round-trip through the browser.
 - Re-run `backend/calibrate.py` against real production questions once there's traffic. The current threshold is calibrated from a 16-question probe set, which is a reasonable start but not the same as live data.
-- Frontend tests. The backend has 74 pytest cases around the router, the parallel retrievers, fusion, the gate, the index, the ticket store, and the API's auth gate; the React side, chat and admin both, is only checked by hand.
+- Frontend tests. The backend has 78 pytest cases around the router, the parallel retrievers, fusion, the gate, the index, the ticket store, and the API's auth gate; the React side, chat and admin both, is only checked by hand.
