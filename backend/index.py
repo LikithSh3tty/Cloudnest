@@ -1,15 +1,18 @@
+import hmac
 import os
 import sys
 from pathlib import Path
 from uuid import uuid4
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from fastapi import FastAPI
+from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel
 
+import tickets_store
 from app import build_app, sources_from_context
 
 graph = build_app()
+tickets_store.init_db()  # idempotent; no-op when no database is configured
 app = FastAPI(title="CloudNest support API")
 
 
@@ -27,6 +30,15 @@ def chat(body: ChatIn):
     # sections as chips. No sources on a clarify (sub-threshold) or an
     # escalate (the answer is a handoff, not a doc-grounded reply).
     escalated = result.get("escalate", False)
+    ticket = result.get("ticket")
+    if escalated and ticket:
+        # Best-effort: a persistence failure must never turn a chat reply into
+        # a 500. save_ticket already swallows its own errors; this guards
+        # against anything unexpected too.
+        try:
+            tickets_store.save_ticket(ticket)
+        except Exception as exc:
+            print(f"ticket persist failed: {type(exc).__name__}")
     sources = ([] if result["clarified"] or escalated
                else sources_from_context(result["context"])[:3])
     return {"answer": result["messages"][-1]["content"],
@@ -34,7 +46,7 @@ def chat(body: ChatIn):
             "confidence": result["confidence"],
             "clarified": result["clarified"],
             "escalated": escalated,
-            "ticket": result.get("ticket"),
+            "ticket": ticket,
             "sources": sources}
 
 
@@ -43,3 +55,14 @@ def health():
     from app import INDEX
     return {"mode": "claude" if os.environ.get("ANTHROPIC_API_KEY") else "extractive",
             "retrieval": "semantic" if INDEX is not None else "lexical"}
+
+
+@app.get("/api/tickets")
+def tickets(x_admin_token: str | None = Header(default=None)):
+    password = os.environ.get("ADMIN_PASSWORD")
+    if not password:
+        # Closed by default: no admin password configured means no admin access.
+        raise HTTPException(status_code=503, detail="admin not configured")
+    if not x_admin_token or not hmac.compare_digest(x_admin_token, password):
+        raise HTTPException(status_code=401, detail="unauthorized")
+    return {"tickets": tickets_store.list_tickets()}
