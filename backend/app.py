@@ -206,10 +206,18 @@ def contextualize_query(messages: list[dict]) -> str:
     retrieval sees the folded text - the full conversation still goes to
     the LLM for the actual answer, so nothing changes about how Claude
     reads the conversation.
+
+    Greeting-only turns are skipped, not folded. They carry no topic to
+    inherit, and mixing one in actively hurts: "what are the plans" scores
+    0.397 on its own but 0.256 as "hello my name is likith. what are the
+    plans", which drops an in-scope question under the off-topic floor. So we
+    keep looking back for a turn that actually had a subject.
     """
     current = messages[-1]["content"]
     for msg in reversed(messages[:-1]):
         if msg["role"] == "user" and msg["content"].strip():
+            if _is_greeting(msg["content"]):
+                continue
             prior = msg["content"].strip()[:CONTEXT_CHAR_CAP]
             return f"{prior}. {current}"
     return current
