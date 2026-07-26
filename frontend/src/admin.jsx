@@ -2,66 +2,65 @@ import React, { useEffect, useState } from "react";
 import ReactDOM from "react-dom/client";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { clearSession, loadSession } from "./session";
 import "./admin.css";
 
-function Login({ onSubmit, error }) {
-  const [user, setUser] = useState("");
-  const [pw, setPw] = useState("");
-  return (
-    <form
-      className="admin-login"
-      onSubmit={(e) => {
-        e.preventDefault();
-        onSubmit(user, pw);
-      }}
-    >
-      <h1>CloudNest Admin</h1>
-      <p>Admins only. Sign in to view escalated tickets.</p>
-      <input
-        type="text"
-        value={user}
-        onChange={(e) => setUser(e.target.value)}
-        placeholder="Username"
-        autoComplete="username"
-        autoFocus
-      />
-      <input
-        type="password"
-        value={pw}
-        onChange={(e) => setPw(e.target.value)}
-        placeholder="Password"
-        autoComplete="current-password"
-      />
-      <button type="submit">Sign in</button>
-      {error && <div className="admin-error">{error}</div>}
-      <a className="admin-back" href="/">
-        Back to support
-      </a>
-    </form>
-  );
+function when(value) {
+  if (!value) return null;
+  const d = new Date(value);
+  return isNaN(d) ? value : d.toLocaleString();
 }
 
 function Ticket({ ticket, open, onToggle }) {
-  const when = new Date(ticket.created_at).toLocaleString();
   return (
     <div className={`admin-ticket${open ? " open" : ""}`}>
       <button className="admin-ticket-head" onClick={onToggle}>
-        <span className="admin-when">{when}</span>
+        <span className="admin-when">{when(ticket.created_at)}</span>
+        <span className="admin-user">
+          {ticket.username ? (
+            <>
+              <span className="admin-avatar" aria-hidden="true">
+                {ticket.username.slice(0, 1).toUpperCase()}
+              </span>
+              {ticket.username}
+            </>
+          ) : (
+            <span className="admin-anon">not signed in</span>
+          )}
+        </span>
         <span className="admin-cat">{ticket.category}</span>
         <span className="admin-reason">{ticket.reason}</span>
         <span className="admin-conf">{ticket.confidence.toFixed(2)}</span>
         <span className="admin-q">{ticket.question}</span>
       </button>
       {open && (
-        <div className="admin-convo">
-          {ticket.conversation.map((m, i) => (
-            <div key={i} className={`admin-msg admin-msg-${m.role}`}>
-              <div className="admin-role">{m.role}</div>
-              <div className="admin-body">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
-              </div>
+        <div className="admin-detail">
+          <dl className="admin-meta">
+            <div>
+              <dt>Raised by</dt>
+              <dd>{ticket.username || "not signed in"}</dd>
             </div>
-          ))}
+            <div>
+              <dt>Signed in</dt>
+              <dd>{when(ticket.signed_in_at) || "—"}</dd>
+            </div>
+            <div>
+              <dt>Ticket</dt>
+              <dd className="admin-mono">{ticket.id}</dd>
+            </div>
+          </dl>
+          <div className="admin-convo">
+            {ticket.conversation.map((m, i) => (
+              <div key={i} className={`admin-msg admin-msg-${m.role}`}>
+                <div className="admin-role">
+                  {m.role === "user" ? ticket.username || "user" : "CloudNest"}
+                </div>
+                <div className="admin-body">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
@@ -69,75 +68,78 @@ function Ticket({ ticket, open, onToggle }) {
 }
 
 function Admin() {
-  const [authed, setAuthed] = useState(false);
+  const [session] = useState(() => loadSession());
   const [tickets, setTickets] = useState([]);
   const [error, setError] = useState("");
   const [openId, setOpenId] = useState(null);
-  const [loading, setLoading] = useState(false);
-
-  async function load(user, token) {
-    setLoading(true);
-    setError("");
-    try {
-      const res = await fetch("/api/tickets", {
-        headers: { "X-Admin-User": user, "X-Admin-Token": token },
-      });
-      if (res.status === 401) {
-        sessionStorage.removeItem("adminUser");
-        sessionStorage.removeItem("adminToken");
-        setAuthed(false);
-        setError("Wrong username or password.");
-        return;
-      }
-      if (res.status === 503) {
-        setAuthed(false);
-        setError("Admin isn't configured yet.");
-        return;
-      }
-      if (!res.ok) {
-        setAuthed(false);
-        setError("Something went wrong.");
-        return;
-      }
-      const data = await res.json();
-      sessionStorage.setItem("adminUser", user);
-      sessionStorage.setItem("adminToken", token);
-      setTickets(data.tickets || []);
-      setAuthed(true);
-    } catch (e) {
-      setAuthed(false);
-      setError("Could not reach the server.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  function signOut() {
-    sessionStorage.removeItem("adminUser");
-    sessionStorage.removeItem("adminToken");
-    setTickets([]);
-    setAuthed(false);
-  }
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const user = sessionStorage.getItem("adminUser");
-    const token = sessionStorage.getItem("adminToken");
-    if (user && token) load(user, token);
-  }, []);
+    // There is no login form here - sign-in happens once, on the front page.
+    if (!session?.isAdmin) {
+      window.location.replace("/");
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/tickets", {
+          headers: { "X-Admin-User": session.username, "X-Admin-Token": session.token },
+        });
+        if (cancelled) return;
+        if (res.status === 401) {
+          clearSession();
+          window.location.replace("/");
+          return;
+        }
+        if (res.status === 503) {
+          setError("Admin isn't configured on this deployment.");
+          return;
+        }
+        if (!res.ok) {
+          setError("Something went wrong loading tickets.");
+          return;
+        }
+        const data = await res.json();
+        setTickets(data.tickets || []);
+      } catch {
+        if (!cancelled) setError("Could not reach the server.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [session]);
 
-  if (!authed) return <Login onSubmit={load} error={error} />;
+  function signOut() {
+    clearSession();
+    window.location.replace("/");
+  }
+
+  if (!session?.isAdmin) return null; // redirecting
 
   return (
     <div className="admin-wrap">
       <header className="admin-header">
-        <h1>Escalated tickets</h1>
+        <div>
+          <span className="admin-eyebrow">CloudNest admin</span>
+          <h1>Escalated tickets</h1>
+        </div>
         <span className="admin-count">{tickets.length}</span>
+        <a className="admin-link" href="/">
+          Support desk
+        </a>
         <button type="button" className="admin-signout" onClick={signOut}>
           Sign out
         </button>
       </header>
-      {loading && <div className="admin-empty">Loading…</div>}
-      {!loading && tickets.length === 0 && <div className="admin-empty">No tickets yet.</div>}
+      {error && <div className="admin-empty">{error}</div>}
+      {!error && loading && <div className="admin-empty">Loading…</div>}
+      {!error && !loading && tickets.length === 0 && (
+        <div className="admin-empty">No tickets yet.</div>
+      )}
       {tickets.map((t) => (
         <Ticket
           key={t.id}

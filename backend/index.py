@@ -19,6 +19,11 @@ app = FastAPI(title="CloudNest support API")
 class ChatIn(BaseModel):
     message: str
     history: list[dict] = []
+    # Who is asking, so the admin can see it on the ticket. Dummy sign-in: the
+    # browser asserts this, nothing verifies it, and no account is stored.
+    # Optional, so the API still answers a caller that never signed in.
+    username: str | None = None
+    signed_in_at: str | None = None
 
 
 @app.post("/api/chat")
@@ -31,6 +36,11 @@ def chat(body: ChatIn):
     # escalate (the answer is a handoff, not a doc-grounded reply).
     escalated = result.get("escalate", False)
     ticket = result.get("ticket")
+    if ticket:
+        # The graph builds the ticket without knowing about sessions; the user
+        # is stitched on here so Subsystem 1 stays unaware of the login flow.
+        ticket = {**ticket, "username": body.username,
+                  "signed_in_at": body.signed_in_at}
     if escalated and ticket:
         # Best-effort: a persistence failure must never turn a chat reply into
         # a 500. save_ticket already swallows its own errors; this guards

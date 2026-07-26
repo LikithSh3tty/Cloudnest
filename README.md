@@ -61,9 +61,19 @@ A first explicit request for a human ("let me talk to a person", "get me an agen
 
 Every escalated ticket is persisted to Postgres by `backend/tickets_store.py`, the only module that touches the database. `/admin` is a separate page (its own Vite entry and bundle — the chat bundle is untouched) showing the tickets newest-first, each row expandable to the full conversation that led to the handoff. It's read-only: there's no way to edit or delete a ticket from it.
 
-Getting in takes a username and a password. The chat sidebar has an **Admin login** link down at the bottom; it goes to `/admin`, which asks for both. The username defaults to `admin` and is overridable with `ADMIN_USERNAME`; the password is `ADMIN_PASSWORD`. Credentials travel as `X-Admin-User` and `X-Admin-Token` headers, never in the URL, and both are compared with `hmac.compare_digest` in a single expression — a wrong username and a wrong password are indistinguishable from the outside, both just 401. The session lives in `sessionStorage` and there's a Sign out button. The endpoint is closed by default: with no `ADMIN_PASSWORD` set it returns 503 and the admin page says it isn't configured.
+### Signing in
 
-This is a shared credential, not real accounts — it gates the queue, it doesn't identify who opened it.
+There's **one login page**, and it serves both roles. The support desk is closed until you sign in; whoever you sign in as is the name the admin later sees on your ticket.
+
+The trick is that the page doesn't decide who you are — the server does. Whatever you type is tried against `GET /api/tickets`: a 200 means those were the admin credentials and you land on the ticket queue, anything else signs you in as an ordinary user and opens the chat. So the admin username never appears in the frontend bundle, and there's no "are you an admin?" checkbox to lie to.
+
+Admin credentials are `ADMIN_USERNAME` (default `admin`) and `ADMIN_PASSWORD`, sent as `X-Admin-User` and `X-Admin-Token` headers, never in the URL, and compared with `hmac.compare_digest` in a single expression — a wrong username and a wrong password are indistinguishable from outside, both just 401. `/admin` has no login form of its own: without an admin session it bounces you to the front page.
+
+**Ordinary sign-in is deliberately fake.** Any username and password is accepted, no account exists, nothing is stored, and the session dies with the tab. It exists to put a name on a ticket so the admin view has something real to show — it is not authentication, and nothing a user sees is protected by it. Only the admin half is checked, and only server-side.
+
+### What the admin sees
+
+Each ticket row carries the username that raised it, and expanding one shows who they were, when they signed in, and the full conversation with their name on their turns. Tickets raised before the login flow existed — or by anyone hitting the API directly — show *not signed in* rather than a fake name. The user columns are nullable and `init_db()` adds them to an existing table with `ALTER TABLE … ADD COLUMN IF NOT EXISTS`, so an existing `tickets` table upgrades in place.
 
 With no database configured at all, nothing breaks — `save_ticket` no-ops, `list_tickets` returns an empty list, and chat runs exactly as before. Persistence is also best-effort inside `/api/chat`: if the write fails, the user still gets their answer.
 
@@ -82,7 +92,7 @@ Alliedworks/
 │   ├── calibrate.py         # measures the confidence threshold from real questions
 │   ├── index.npz            # committed embedding index (vectors + chunk metadata)
 │   ├── model/                # vendored int8 embedding model + tokenizer
-│   ├── tests/                # pytest suite (65 tests)
+│   ├── tests/                # pytest suite (67 tests)
 │   ├── requirements.txt
 │   └── requirements-dev.txt  # requirements.txt + pytest + httpx
 ├── cloudnest_docs/          # the knowledge base — plain markdown
@@ -96,6 +106,8 @@ Alliedworks/
 ├── frontend/
 │   ├── src/
 │   │   ├── App.jsx          # the chat UI
+│   │   ├── Login.jsx        # the one sign-in page, for users and admins alike
+│   │   ├── session.js       # session storage + the server-decides-the-role check
 │   │   ├── main.jsx
 │   │   ├── app.css
 │   │   ├── admin.jsx        # read-only admin view of escalated tickets
@@ -170,7 +182,7 @@ Three endpoints, all under `/api`.
 }
 ```
 
-`history` is a list of `{ "role": "user" | "assistant", "content": "..." }` objects. The frontend keeps track of it and sends the running conversation with each request, since the backend doesn't hold session state of its own.
+`history` is a list of `{ "role": "user" | "assistant", "content": "..." }` objects. The frontend keeps track of it and sends the running conversation with each request, since the backend doesn't hold session state of its own. Two optional fields, `username` and `signed_in_at`, carry the signed-in user; they're stitched onto the ticket on escalation so the admin can see who raised it, and omitting them just leaves the ticket unattributed.
 
 Response:
 
@@ -186,7 +198,7 @@ Response:
 }
 ```
 
-`clarified` and `escalated` tell you which branch of the graph answered (`clarified: true` means it asked you to add detail instead of answering; `escalated: true` means it handed the conversation off instead). `sources` lists the titles of the doc sections the answer was cited from — empty on either a clarify or an escalate, since neither is a doc-grounded answer. `ticket` carries the escalation record (id, timestamp, question, category, confidence, the full conversation, and a reason) when `escalated` is true, otherwise `null`. None of these are shown in the chat window; all exist for logging and debugging. The ticket is also persisted to Postgres on escalate and readable at [`/admin`](#admin-view).
+`clarified` and `escalated` tell you which branch of the graph answered (`clarified: true` means it asked you to add detail instead of answering; `escalated: true` means it handed the conversation off instead). `sources` lists the titles of the doc sections the answer was cited from — empty on either a clarify or an escalate, since neither is a doc-grounded answer. `ticket` carries the escalation record (id, timestamp, question, category, confidence, the full conversation, a reason, and the signed-in `username` / `signed_in_at`) when `escalated` is true, otherwise `null`. None of these are shown in the chat window; all exist for logging and debugging. The ticket is also persisted to Postgres on escalate and readable at [`/admin`](#admin-view).
 
 **`GET /api/health`** — returns `{ "mode": "claude" }` if a key is configured, `{ "mode": "extractive" }` otherwise, plus a `retrieval` field: `"semantic"` when the embedding index is loaded, or `"lexical"` when it has fallen back to keyword retrieval. The UI uses `mode` to set the status badge.
 
@@ -240,4 +252,4 @@ Live at **[cloudnest-nine.vercel.app](https://cloudnest-nine.vercel.app)**. `/ap
 - A stronger embedding model, and a real retrieval strategy (a stronger fusion/rerank than plain RRF, not just a bigger fixed cutoff) once the corpus outgrows `SMALL_CORPUS_LIMIT`. `FALLBACK_TOP_K` in `app.py` is a placeholder, not a tuned value — a fixed cutoff has the same failure mode the whole-corpus change just fixed, just at a different scale.
 - Persist conversations server-side so history doesn't have to round-trip through the browser.
 - Re-run `backend/calibrate.py` against real production questions once there's traffic. The current threshold is calibrated from a 16-question probe set, which is a reasonable start but not the same as live data.
-- Frontend tests. The backend has 65 pytest cases around the router, the parallel retrievers, fusion, the gate, the index, the ticket store, and the API's auth gate; the React side, chat and admin both, is only checked by hand.
+- Frontend tests. The backend has 67 pytest cases around the router, the parallel retrievers, fusion, the gate, the index, the ticket store, and the API's auth gate; the React side, chat and admin both, is only checked by hand.

@@ -19,11 +19,24 @@ CREATE TABLE IF NOT EXISTS tickets (
     category     TEXT NOT NULL,
     confidence   DOUBLE PRECISION NOT NULL,
     reason       TEXT NOT NULL,
-    conversation JSONB NOT NULL
+    conversation JSONB NOT NULL,
+    username     TEXT,
+    signed_in_at TIMESTAMPTZ
 )
 """
 
-_COLUMNS = ["id", "created_at", "question", "category", "confidence", "reason", "conversation"]
+# CREATE TABLE IF NOT EXISTS won't touch a table that already exists, so the
+# who-raised-it columns are added separately. Both are nullable: tickets
+# predating the login flow have no user, and that is not an error.
+_ADD_COLUMNS = (
+    "ALTER TABLE tickets ADD COLUMN IF NOT EXISTS username TEXT",
+    "ALTER TABLE tickets ADD COLUMN IF NOT EXISTS signed_in_at TIMESTAMPTZ",
+)
+
+_COLUMNS = ["id", "created_at", "question", "category", "confidence", "reason",
+            "conversation", "username", "signed_in_at"]
+
+_TIMESTAMPS = ("created_at", "signed_in_at")
 
 
 def _dsn() -> str | None:
@@ -42,6 +55,8 @@ def init_db() -> None:
     try:
         with psycopg.connect(_dsn()) as conn:
             conn.execute(_CREATE)
+            for statement in _ADD_COLUMNS:
+                conn.execute(statement)
     except Exception as exc:
         print(f"init_db failed: {type(exc).__name__}")
 
@@ -53,7 +68,8 @@ def save_ticket(ticket: dict) -> bool:
         with psycopg.connect(_dsn()) as conn:
             conn.execute(
                 "INSERT INTO tickets (id, created_at, question, category, confidence,"
-                " reason, conversation) VALUES (%s, %s, %s, %s, %s, %s, %s)"
+                " reason, conversation, username, signed_in_at)"
+                " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)"
                 " ON CONFLICT (id) DO NOTHING",
                 (
                     ticket["id"],
@@ -63,6 +79,9 @@ def save_ticket(ticket: dict) -> bool:
                     ticket["confidence"],
                     ticket["reason"],
                     Json(ticket["conversation"]),
+                    # absent for anything raised before the login flow existed
+                    ticket.get("username"),
+                    ticket.get("signed_in_at"),
                 ),
             )
         return True
@@ -78,7 +97,8 @@ def list_tickets(limit: int = 100) -> list[dict]:
         with psycopg.connect(_dsn()) as conn:
             rows = conn.execute(
                 "SELECT id, created_at, question, category, confidence, reason,"
-                " conversation FROM tickets ORDER BY created_at DESC LIMIT %s",
+                " conversation, username, signed_in_at"
+                " FROM tickets ORDER BY created_at DESC LIMIT %s",
                 (limit,),
             ).fetchall()
     except Exception as exc:
@@ -87,7 +107,8 @@ def list_tickets(limit: int = 100) -> list[dict]:
     out = []
     for row in rows:
         d = dict(zip(_COLUMNS, row))
-        created = d["created_at"]
-        d["created_at"] = created.isoformat() if hasattr(created, "isoformat") else created
+        for field in _TIMESTAMPS:
+            value = d[field]
+            d[field] = value.isoformat() if hasattr(value, "isoformat") else value
         out.append(d)
     return out

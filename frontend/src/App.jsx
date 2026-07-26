@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import Login from "./Login";
+import { clearSession, loadSession } from "./session";
 
 function ChatIcon() {
   return (
@@ -120,6 +122,7 @@ function TypingReply() {
 }
 
 export default function App() {
+  const [session, setSession] = useState(() => loadSession());
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -157,7 +160,13 @@ export default function App() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: question, history }),
+        body: JSON.stringify({
+          message: question,
+          history,
+          // rides along so an escalation ticket knows who raised it
+          username: session?.username ?? null,
+          signed_in_at: session?.signedInAt ?? null,
+        }),
       });
       if (!res.ok) throw new Error(`server returned ${res.status}`);
       const data = await res.json();
@@ -179,6 +188,16 @@ export default function App() {
 
   const online = mode === "claude";
   const empty = messages.length === 0 && !busy && !error;
+
+  // The desk is closed until someone signs in - that is what puts a name on
+  // every ticket the admin later reads.
+  if (!session) return <Login onSignedIn={setSession} />;
+
+  function signOut() {
+    clearSession();
+    setSession(null);
+    setMessages([]);
+  }
 
   return (
     <div className="app">
@@ -208,10 +227,23 @@ export default function App() {
         </nav>
 
         <div className="sidebar-foot">
-          <a className="admin-login-link" href="/admin">
-            <LockIcon />
-            Admin login
-          </a>
+          {session.isAdmin && (
+            <a className="admin-login-link" href="/admin">
+              <LockIcon />
+              Ticket queue
+            </a>
+          )}
+          <div className="session-row">
+            <span className="session-avatar" aria-hidden="true">
+              {session.username.slice(0, 1).toUpperCase()}
+            </span>
+            <span className="session-name" title={session.username}>
+              {session.username}
+            </span>
+            <button type="button" className="session-out" onClick={signOut}>
+              Sign out
+            </button>
+          </div>
         </div>
       </aside>
 

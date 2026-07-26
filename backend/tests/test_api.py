@@ -72,6 +72,45 @@ def test_tickets_returns_list_with_correct_credentials(monkeypatch):
     assert r.json()["tickets"] == SAMPLE
 
 
+ESCALATING = {
+    "message": "no, connect me to a person",
+    "history": [
+        {"role": "user", "content": "get me a human"},
+        {"role": "assistant", "content": "PLACEHOLDER"},
+    ],
+}
+
+
+def _escalating_body(**extra):
+    history = [dict(m) for m in ESCALATING["history"]]
+    history[1]["content"] = app.DEFLECT_MSG
+    return {"message": ESCALATING["message"], "history": history, **extra}
+
+
+def test_chat_attaches_the_signed_in_user_to_the_ticket(monkeypatch):
+    saved = {}
+    monkeypatch.setattr(tickets_store, "save_ticket", lambda t: saved.update(t) or True)
+    r = client.post("/api/chat", json=_escalating_body(
+        username="alice", signed_in_at="2026-07-26T09:00:00+00:00"))
+    assert r.status_code == 200
+    ticket = r.json()["ticket"]
+    assert ticket["username"] == "alice"
+    assert ticket["signed_in_at"] == "2026-07-26T09:00:00+00:00"
+    # and the enriched ticket - not the graph's bare one - is what gets stored
+    assert saved["username"] == "alice"
+    assert saved["signed_in_at"] == "2026-07-26T09:00:00+00:00"
+
+
+def test_chat_works_without_a_signed_in_user(monkeypatch):
+    # The graph and the store must not require the frontend to send a user.
+    saved = {}
+    monkeypatch.setattr(tickets_store, "save_ticket", lambda t: saved.update(t) or True)
+    r = client.post("/api/chat", json=_escalating_body())
+    assert r.status_code == 200
+    assert r.json()["ticket"]["username"] is None
+    assert saved["signed_in_at"] is None
+
+
 def test_chat_still_succeeds_when_ticket_write_raises(monkeypatch):
     def boom(ticket):
         raise RuntimeError("db down")
