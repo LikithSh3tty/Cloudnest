@@ -30,56 +30,48 @@ that variant is explicitly selected.
 
 - **`make_pairs.py`** — generates `data/train_pairs.jsonl`, synthetic
   (question, section) training pairs written by Claude in a user's
-  register rather than the docs' own vocabulary.
+  register rather than the docs' own vocabulary. Resumable: re-running it
+  skips any section that already has rows and appends only what's
+  missing, and always skips "bare H1 title" chunks (see below) regardless
+  of coverage.
 
   ```bash
   python finetune/make_pairs.py --per-chunk 10
   ```
 
-  **`data/train_pairs.jsonl` is currently a partial sweep, not the full
-  corpus: 366 rows covering 31 of the 46 sections in
-  `backend.app.load_chunks()`.** Generation ran out of Anthropic API
-  credit mid-run and was not completed; separately, 61 rows generated from
-  5 near-content-free "bare H1 title" chunks (a property of
-  `load_chunks()` itself — 6 of the 7 docs have no intro paragraph before
-  their first `##` heading, so that first "chunk" is just the title line)
-  were hand-relabeled to the specific section that actually answers each
-  question, or deleted where no section in the same document does. See
-  the task-3 report for the full before/after mapping.
+  **`data/train_pairs.jsonl` now covers 40 of the 46 sections in
+  `backend.app.load_chunks()`, 464 rows.** Two things happened to get
+  here, both recorded in the task-3 report:
 
-  **15 sections have zero training pairs**, for two different reasons —
-  do not conflate them:
+  - The first generation pass hit the Anthropic API credit wall mid-run
+    (section 37 of 46) and 61 of its rows had come from 5 near-
+    content-free "bare H1 title" chunks — a property of `load_chunks()`
+    itself, since 6 of the 7 docs have no intro paragraph before their
+    first `##` heading, so that first "chunk" is just the title line.
+    Those 61 rows were hand-relabeled to the specific section that
+    actually answers each question, or deleted where no section in the
+    same document does (32 of the 61).
+  - A second, resumed pass (after credits were restored) generated pairs
+    for exactly the sections generation never reached the first time —
+    skipping every section that already had rows, and skipping bare
+    chunks outright rather than ever generating for them again.
 
-  - **10 sections were never reached by generation** (credit ran out at
-    section 37 of 46):
-    ```
-    06_security_privacy.md   Compliance
-    06_security_privacy.md   Third-Party Sharing
-    06_security_privacy.md   Security Incident Reporting
-    07_general_faq.md        CloudNest — General FAQ
-    07_general_faq.md        Is there a mobile app?
-    07_general_faq.md        Can I share files with people who don't have CloudNest?
-    07_general_faq.md        What happens to my files if I stop paying?
-    07_general_faq.md        Does CloudNest have a referral program?
-    07_general_faq.md        Is there a desktop notification for sync errors?
-    07_general_faq.md        Who do I contact for enterprise/custom plans above Team tier?
-    ```
-  - **5 sections are the bare-H1 chunks themselves**, now correctly empty
-    after relabeling moved their rows to the real sections that answer
-    them — this is the fix working as intended, not a gap:
-    ```
-    02_pricing_billing.md     CloudNest — Pricing & Billing
-    03_account_management.md  CloudNest — Account Management
-    04_technical_setup.md     CloudNest — Technical Setup
-    05_troubleshooting.md     CloudNest — Troubleshooting
-    06_security_privacy.md    CloudNest — Security & Privacy
-    ```
+  **6 sections have zero training pairs — all 6 are bare-H1 title
+  chunks, correctly empty by design, not a coverage gap:**
+  ```
+  02_pricing_billing.md     CloudNest — Pricing & Billing
+  03_account_management.md  CloudNest — Account Management
+  04_technical_setup.md     CloudNest — Technical Setup
+  05_troubleshooting.md     CloudNest — Troubleshooting
+  06_security_privacy.md    CloudNest — Security & Privacy
+  07_general_faq.md         CloudNest — General FAQ
+  ```
 
-  Anyone training on this file, or evaluating why a fine-tuned model
-  underperforms on the first group of sections, should know that gap
-  exists before drawing conclusions. Full detail, including the widened
-  leakage check and the relabel/delete mapping applied to the 61 rows, is
-  in `.superpowers/sdd/2026-08-07-finetune-retriever/task-3-report.md`.
+  This is effectively full coverage of the content-bearing corpus (40 of
+  46 chunks; the remaining 6 have no content to train on). Full detail,
+  including the widened leakage check, the relabel/delete mapping applied
+  to the 61 rows, and the resumed top-up run, is in
+  `.superpowers/sdd/2026-08-07-finetune-retriever/task-3-report.md`.
 
 Scripts that fine-tune the model (Task 4 onward: fine-tuning MiniLM,
 exporting int8 ONNX, building the tuned index) land in this directory in
@@ -110,7 +102,8 @@ paraphrase from this file.
 python finetune/eval_retrieval.py --variant baseline
 
 # 2. (Task 3) Generate synthetic training pairs from the docs.
-#    Currently partial - 31 of 46 sections, see the note above.
+#    40 of 46 sections; the other 6 are bare-H1 chunks with no
+#    content, see the note above.
 # 3. (Task 4) Fine-tune MiniLM on those pairs; export int8 ONNX.
 # 4. (Task 5) Build the tuned index:
 EMBED_VARIANT=finetuned python backend/build_index.py
