@@ -38,8 +38,15 @@ def _load_env_file(path: Path) -> None:
 for _env_file in ENV_FILES:
     _load_env_file(_env_file)
 DOCS_DIR = Path(__file__).resolve().parent.parent / "cloudnest_docs"
-# cosine similarity, chosen from backend/calibrate.py output
-CONFIDENCE_THRESHOLD = 0.30
+from variant import active_variant
+
+# cosine similarity, chosen from backend/calibrate.py output. Measured, not
+# guessed - see backend/calibrate.py. Each variant has its own cosine
+# distribution, so the gate moves with the model. Keeping both here means
+# EMBED_VARIANT=baseline restores the baseline gate too, rather than leaving
+# the old model behind a threshold tuned for a different one.
+_THRESHOLDS = {"baseline": 0.30, "finetuned": 0.28}  # update from calibrate.py
+CONFIDENCE_THRESHOLD = _THRESHOLDS[active_variant()]
 ESCALATE_FLOOR = 0.27  # just above the measured out-of-scope ceiling (0.265);
                        # below this a question is off-topic noise and never tickets
                        # In fully-degraded (no-index) mode confidence is the

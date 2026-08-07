@@ -2,7 +2,18 @@
 
 Cosine similarity has no natural cutoff, and it is not on the same scale as the
 matched-terms ratio the lexical scorer produced. Measure, do not guess.
+
+    python calibrate.py --variant baseline
+    EMBED_VARIANT=finetuned python calibrate.py --variant finetuned
+
+--variant only labels the printout so the two thresholds are never confused;
+the model actually measured is whichever EMBED_VARIANT selects (see
+variant.py), since INDEX_PATH and the ONNX session are both resolved at
+import time. Passing --variant finetuned without EMBED_VARIANT=finetuned in
+the environment would measure baseline and print a misleading label, so the
+mismatch is checked below rather than left to catch a stale caller silently.
 """
+import argparse
 import sys
 from pathlib import Path
 
@@ -35,7 +46,18 @@ OUT_OF_SCOPE = [
 ]
 
 
-def report() -> None:
+def report(expected_variant: str | None = None) -> None:
+    from variant import active_variant
+
+    variant = active_variant()
+    print(f"variant: {variant}")
+    if expected_variant is not None and expected_variant != variant:
+        print(
+            f"WARNING: --variant {expected_variant!r} was requested but "
+            f"EMBED_VARIANT resolves to {variant!r}; the numbers below are for "
+            f"{variant!r}. Set EMBED_VARIANT={expected_variant} to match."
+        )
+
     index = load_index()
     if index is None:
         print("no usable index; run: python backend/build_index.py")
@@ -67,5 +89,13 @@ def report() -> None:
         print("risks confident wrong answers; a high value asks to rephrase more.")
 
 
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--variant", default="baseline",
+                        choices=["baseline", "finetuned"])
+    args = parser.parse_args()
+    report(expected_variant=args.variant)
+
+
 if __name__ == "__main__":
-    report()
+    main()

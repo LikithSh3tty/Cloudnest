@@ -131,11 +131,21 @@ def test_score_restores_environment_after_a_failed_call(clean_variant_state):
     """The exception path is the real hazard Finding 3 was about: score()
     sets os.environ["EMBED_VARIANT"] near the top of the function, then
     raises SystemExit from the missing-index branch when a variant has no
-    built index. "finetuned" has no built index yet, so this raises for
-    real. Without the try/finally, the raise would skip the restore and
-    leave EMBED_VARIANT dirty for every call afterward in the process —
-    exactly what Task 5 will hit the first time it evaluates "finetuned"
-    before that variant's index has been built.
+    built index. This test needs "finetuned" to genuinely have no built
+    index to reach that branch for real, which was true by accident of task
+    ordering until Task 5 built backend/index_finetuned.npz (the whole point
+    of that task). So the file is hidden for the span of the score() call
+    below and restored immediately after — manufacturing the same condition
+    on demand instead of depending on it being naturally absent.
+
+    The hide/restore happens *inside* the test body, after the general
+    "is any index available" skip guard, not in a fixture: this whole suite
+    also runs under EMBED_VARIANT=finetuned (Task 5, Step 7), where
+    backend/app.py resolves INDEX_PATH to index_finetuned.npz for the
+    process. A fixture that hides that file before the test body runs would
+    make the guard's own load_index() call see no index and skip — even
+    though the guard's job is only to skip on a fresh checkout with no
+    index built at all, not to react to this test's own setup.
 
     (A same-variant or cross-variant *success* comparison was tried in an
     earlier round and rejected: score() unconditionally pops and
@@ -159,8 +169,18 @@ def test_score_restores_environment_after_a_failed_call(clean_variant_state):
     embed_variant = os.environ.get("EMBED_VARIANT")
     assert embed_variant is None
 
-    with pytest.raises(SystemExit):
-        score("finetuned")
+    backend = Path(__file__).resolve().parent.parent
+    index_path = backend / "index_finetuned.npz"
+    hidden_path = backend / "index_finetuned.npz.hidden-for-test"
+    index_existed = index_path.exists()
+    if index_existed:
+        index_path.rename(hidden_path)
+    try:
+        with pytest.raises(SystemExit):
+            score("finetuned")
+    finally:
+        if index_existed:
+            hidden_path.rename(index_path)
 
     embed_variant = os.environ.get("EMBED_VARIANT")
     assert embed_variant is None, (

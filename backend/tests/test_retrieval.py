@@ -365,20 +365,28 @@ def test_repeated_borderline_miss_escalates():
     # Force the borderline band deterministically, independent of the corpus.
     import app as _app
 
+    # Midpoint of [ESCALATE_FLOOR, CONFIDENCE_THRESHOLD), not a hardcoded
+    # 0.28: that literal sat inside the baseline band (0.27-0.30) but landed
+    # outside the finetuned band (0.27-0.28), since CONFIDENCE_THRESHOLD is
+    # now variant-dependent (see app.py). The midpoint is guaranteed to be
+    # in the band for whichever variant is active.
+    borderline = (_app.ESCALATE_FLOOR + _app.CONFIDENCE_THRESHOLD) / 2
+
     graph_state = [
         {"role": "user", "content": "something vaguely about my plan tier"},
         {"role": "assistant", "content": _app.CLARIFY_BORDERLINE_MSG},
         {"role": "user", "content": "the other thing i mentioned"},
     ]
     # gate reads confidence + prior clarify text from history
-    assert _app.picker_for_test(0.28, graph_state, lexical_rescue=False) == "escalate"
-    assert _app.picker_for_test(0.28, graph_state[:1], lexical_rescue=False) == "clarify"
+    assert _app.picker_for_test(borderline, graph_state, lexical_rescue=False) == "escalate"
+    assert _app.picker_for_test(borderline, graph_state[:1], lexical_rescue=False) == "clarify"
 
 
 def test_borderline_with_lexical_rescue_answers():
     import app as _app
+    borderline = (_app.ESCALATE_FLOOR + _app.CONFIDENCE_THRESHOLD) / 2
     msgs = [{"role": "user", "content": "cloudnest-cli"}]
-    assert _app.picker_for_test(0.28, msgs, lexical_rescue=True) == "responder"
+    assert _app.picker_for_test(borderline, msgs, lexical_rescue=True) == "responder"
 
 
 def test_offtopic_below_floor_never_escalates_via_picker():
