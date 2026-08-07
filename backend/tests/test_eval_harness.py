@@ -49,3 +49,33 @@ def test_score_reports_all_metrics():
         assert key in result
     assert 0.0 <= result["recall@1"] <= 1.0
     assert result["recall@1"] <= result["recall@3"], "recall@3 cannot be below recall@1"
+
+
+def test_score_restores_environment_after_call():
+    """score() mutates EMBED_VARIANT and pops sys.modules entries while it
+    runs, but Task 5 calls it for two variants back to back in one process
+    — leftover env/module state from one call must never leak into the
+    next."""
+    index = load_index()
+    if index is None:
+        pytest.skip("no index available")
+    import os
+
+    had_env = "EMBED_VARIANT" in os.environ
+    prior_value = os.environ.get("EMBED_VARIANT")
+
+    score("baseline")
+
+    if had_env:
+        assert os.environ.get("EMBED_VARIANT") == prior_value
+    else:
+        assert "EMBED_VARIANT" not in os.environ
+
+
+def test_score_is_idempotent_across_repeated_calls():
+    index = load_index()
+    if index is None:
+        pytest.skip("no index available")
+    first = score("baseline")
+    second = score("baseline")
+    assert first == second

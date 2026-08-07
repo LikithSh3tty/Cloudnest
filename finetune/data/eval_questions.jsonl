@@ -42,10 +42,10 @@
 {"question": "I signed in using Google and forgot my password. What should I do?", "doc": "03_account_management.md", "title": "Password Reset", "kind": "multi"}
 {"question": "Which plans support API access, and what storage do they provide?", "doc": "04_technical_setup.md", "title": "API Access", "kind": "multi"}
 {"question": "I need API access, Linux support, and 500 GB of storage. Which plan is right for me?", "doc": "02_pricing_billing.md", "title": "Plans and Pricing", "kind": "multi"}
-{"question": "I need unlimited devices, EU data residency, and API access. Which plan should I choose?", "doc": "06_security_privacy.md", "title": "Data Residency", "kind": "multi"}
+{"question": "I need unlimited devices, EU data residency, and API access. Which plan should I choose?", "doc": "02_pricing_billing.md", "title": "Plans and Pricing", "kind": "multi"}
 {"question": "I'm using 600 GB of storage and my payment failed three times. What happens to my account?", "doc": "02_pricing_billing.md", "title": "Failed Payments", "kind": "multi"}
 {"question": "What security features protect my files during upload, storage, and sharing?", "doc": "06_security_privacy.md", "title": "Encryption", "kind": "multi"}
-{"question": "I'm a Linux developer with 12 employees. We need API access, EU data residency, bank transfer payments, CLI automation, and unlimited devices. Which plan should we choose, and why?", "doc": "02_pricing_billing.md", "title": "Payment Methods", "kind": "multi"}
+{"question": "I'm a Linux developer with 12 employees. We need API access, EU data residency, bank transfer payments, CLI automation, and unlimited devices. Which plan should we choose, and why?", "doc": "02_pricing_billing.md", "title": "Plans and Pricing", "kind": "multi"}
 {"question": "I'm moving from the Free plan to Team. Explain every feature I'll gain, every billing change, every security improvement, and every developer capability available after upgrading.", "doc": "02_pricing_billing.md", "title": "Upgrading and Downgrading", "kind": "multi"}
 {"question": "Compare the Free, Pro, and Team plans in terms of storage, devices, pricing, API access, billing, and payment methods.", "doc": "02_pricing_billing.md", "title": "Plans and Pricing", "kind": "multi"}
 {"question": "Explain the complete lifecycle of a deleted file, from deletion, to Trash recovery, to permanent account deletion.", "doc": "05_troubleshooting.md", "title": "Files Missing After Sync", "kind": "multi"}

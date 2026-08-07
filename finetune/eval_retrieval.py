@@ -44,42 +44,93 @@ def score(variant: str, eval_path: Path = DEFAULT_EVAL_PATH) -> dict:
     Loads the variant in a clean interpreter state: embed.py builds its ONNX
     session at import, so switching variants inside one process would keep
     the first model loaded and silently measure it twice.
+
+    Also returns a "by_kind" breakout (per-kind recall@1/recall@3/mrr@10/n,
+    using the eval set's "kind" field) so open-ended synthesis questions
+    that span multiple sections don't silently distort the headline metric
+    for plan-selection-style questions that genuinely have one right answer.
+    The headline recall@1/recall@3/mrr@10/n/variant keys and how they are
+    computed are unchanged — Task 5 compares variants on those, so the
+    baseline already recorded from them must stay valid.
+
+    Global state (EMBED_VARIANT and the popped variant/embed/app modules) is
+    restored on both the success and exception paths: Task 5 calls this for
+    two variants in the same process, and a prior run's env var or module
+    left behind would silently corrupt the next call.
     """
+    had_env = "EMBED_VARIANT" in os.environ
+    prior_env = os.environ.get("EMBED_VARIANT")
     os.environ["EMBED_VARIANT"] = variant
     sys.path.insert(0, str(BACKEND))
+    saved_modules = {
+        name: sys.modules[name] for name in ("variant", "embed", "app") if name in sys.modules
+    }
     for module in ("variant", "embed", "app"):
         sys.modules.pop(module, None)
 
-    from app import load_index
+    try:
+        from app import load_index
 
-    index = load_index()
-    if index is None:
-        raise SystemExit(
-            f"no usable index for variant '{variant}'; "
-            f"run: EMBED_VARIANT={variant} python backend/build_index.py"
-        )
-    vectors, meta = index
+        index = load_index()
+        if index is None:
+            raise SystemExit(
+                f"no usable index for variant '{variant}'; "
+                f"run: EMBED_VARIANT={variant} python backend/build_index.py"
+            )
+        vectors, meta = index
 
-    rows = load_eval_set(eval_path)
-    hits_at_1 = hits_at_3 = 0
-    reciprocal_ranks = []
-    for row in rows:
-        ranked = rank_for(row["question"], vectors, meta)
-        gold = (row["doc"], row["title"])
-        positions = [i for i, c in enumerate(ranked) if (c["doc"], c["title"]) == gold]
-        rank = positions[0] if positions else len(ranked)
-        hits_at_1 += rank == 0
-        hits_at_3 += rank < 3
-        reciprocal_ranks.append(1.0 / (rank + 1) if rank < 10 else 0.0)
+        rows = load_eval_set(eval_path)
+        hits_at_1 = hits_at_3 = 0
+        reciprocal_ranks = []
+        by_kind_stats: dict[str, dict] = {}
+        for row in rows:
+            ranked = rank_for(row["question"], vectors, meta)
+            gold = (row["doc"], row["title"])
+            positions = [i for i, c in enumerate(ranked) if (c["doc"], c["title"]) == gold]
+            rank = positions[0] if positions else len(ranked)
+            hit1 = rank == 0
+            hit3 = rank < 3
+            rr = 1.0 / (rank + 1) if rank < 10 else 0.0
 
-    n = len(rows)
-    return {
-        "variant": variant,
-        "n": n,
-        "recall@1": hits_at_1 / n,
-        "recall@3": hits_at_3 / n,
-        "mrr@10": float(np.mean(reciprocal_ranks)),
-    }
+            hits_at_1 += hit1
+            hits_at_3 += hit3
+            reciprocal_ranks.append(rr)
+
+            bucket = by_kind_stats.setdefault(
+                row.get("kind", "unknown"), {"hits_at_1": 0, "hits_at_3": 0, "rr": [], "n": 0}
+            )
+            bucket["hits_at_1"] += hit1
+            bucket["hits_at_3"] += hit3
+            bucket["rr"].append(rr)
+            bucket["n"] += 1
+
+        n = len(rows)
+        by_kind = {
+            kind: {
+                "recall@1": stats["hits_at_1"] / stats["n"],
+                "recall@3": stats["hits_at_3"] / stats["n"],
+                "mrr@10": float(np.mean(stats["rr"])),
+                "n": stats["n"],
+            }
+            for kind, stats in sorted(by_kind_stats.items())
+        }
+
+        return {
+            "variant": variant,
+            "n": n,
+            "recall@1": hits_at_1 / n,
+            "recall@3": hits_at_3 / n,
+            "mrr@10": float(np.mean(reciprocal_ranks)),
+            "by_kind": by_kind,
+        }
+    finally:
+        for module in ("variant", "embed", "app"):
+            sys.modules.pop(module, None)
+        sys.modules.update(saved_modules)
+        if had_env:
+            os.environ["EMBED_VARIANT"] = prior_env
+        else:
+            os.environ.pop("EMBED_VARIANT", None)
 
 
 def main() -> None:
@@ -93,6 +144,15 @@ def main() -> None:
     print(f"recall@1    {result['recall@1']:.3f}")
     print(f"recall@3    {result['recall@3']:.3f}")
     print(f"MRR@10      {result['mrr@10']:.3f}")
+    print()
+    print("by kind:")
+    for kind, stats in result["by_kind"].items():
+        print(
+            f"  {kind:10s} n={stats['n']:<3d} "
+            f"recall@1={stats['recall@1']:.3f} "
+            f"recall@3={stats['recall@3']:.3f} "
+            f"MRR@10={stats['mrr@10']:.3f}"
+        )
 
 
 if __name__ == "__main__":
