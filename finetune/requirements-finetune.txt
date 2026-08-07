@@ -1,0 +1,9 @@
+# Training and export only. NEVER referenced by backend/requirements.txt -
+# the deployed function stays onnxruntime-only, which is what keeps it small.
+#
+#   pip install -r finetune/requirements-finetune.txt
+sentence-transformers>=3.0
+torch>=2.2
+optimum[onnxruntime]>=1.20
+anthropic>=0.40
+numpy
