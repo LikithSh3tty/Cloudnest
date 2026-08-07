@@ -441,13 +441,19 @@ doesn't cover something, treat it as not specified and use the natural "isn't \
 currently specified" phrasing above. Never quote or reference that information as a \
 source."""
 
+# Sonnet, not Opus: this call only phrases an answer that retrieval already
+# grounded in specific sections, which is not a reasoning-heavy job. It runs
+# on every confident answer, so the tier difference shows up in the bill
+# rather than in the output.
+ANSWER_MODEL = "claude-sonnet-5"
+
 def llm_answer(question: str, context: str, history: list[dict]) -> str | None:
     try:
         import anthropic
         client = anthropic.Anthropic()
         prompt = f"CloudNest product reference:\n{context}\n\nCustomer question: {question}"
         response = client.messages.create(
-            model="claude-opus-4-8",
+            model=ANSWER_MODEL,
             max_tokens=1024,
             system=SUPPORT_SYSTEM_PROMPT,
             messages=history[:-1] + [{"role": "user", "content": prompt}],
