@@ -28,10 +28,42 @@ that variant is explicitly selected.
   pair was verified against `backend.app.load_chunks()` output before being
   committed — see Step 1 of the Task 2 brief for the verification snippet.
 
-Scripts that generate training data or fine-tune the model (Task 3 onward:
-generating synthetic question/chunk pairs from the docs, fine-tuning
-MiniLM, exporting int8 ONNX, building the tuned index) land in this
-directory in later tasks and will be documented here as they're added.
+- **`make_pairs.py`** — generates `data/train_pairs.jsonl`, synthetic
+  (question, section) training pairs written by Claude in a user's
+  register rather than the docs' own vocabulary.
+
+  ```bash
+  python finetune/make_pairs.py --per-chunk 10
+  ```
+
+  **`data/train_pairs.jsonl` is currently a partial sweep, not the full
+  corpus: 398 rows covering 36 of the 46 sections in
+  `backend.app.load_chunks()`.** Generation ran out of Anthropic API
+  credit mid-run and was not completed. These 10 sections have **zero**
+  training pairs:
+
+  ```
+  06_security_privacy.md   Compliance
+  06_security_privacy.md   Third-Party Sharing
+  06_security_privacy.md   Security Incident Reporting
+  07_general_faq.md        CloudNest — General FAQ
+  07_general_faq.md        Is there a mobile app?
+  07_general_faq.md        Can I share files with people who don't have CloudNest?
+  07_general_faq.md        What happens to my files if I stop paying?
+  07_general_faq.md        Does CloudNest have a referral program?
+  07_general_faq.md        Is there a desktop notification for sync errors?
+  07_general_faq.md        Who do I contact for enterprise/custom plans above Team tier?
+  ```
+
+  Anyone training on this file, or evaluating why a fine-tuned model
+  underperforms on those sections, should know that gap exists before
+  drawing conclusions. Full detail, including a widened leakage check and
+  a separate (unresolved) mislabeling issue in 61 of the 398 rows, is in
+  `.superpowers/sdd/2026-08-07-finetune-retriever/task-3-report.md`.
+
+Scripts that fine-tune the model (Task 4 onward: fine-tuning MiniLM,
+exporting int8 ONNX, building the tuned index) land in this directory in
+later tasks and will be documented here as they're added.
 
 ## `data/eval_questions.jsonl` is held out — never train on it
 
@@ -58,6 +90,7 @@ paraphrase from this file.
 python finetune/eval_retrieval.py --variant baseline
 
 # 2. (Task 3) Generate synthetic training pairs from the docs.
+#    Currently partial - 36 of 46 sections, see the note above.
 # 3. (Task 4) Fine-tune MiniLM on those pairs; export int8 ONNX.
 # 4. (Task 5) Build the tuned index:
 EMBED_VARIANT=finetuned python backend/build_index.py
