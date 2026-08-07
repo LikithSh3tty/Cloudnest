@@ -39,9 +39,10 @@ def test_variant_is_case_and_whitespace_tolerant(monkeypatch):
 
 @pytest.mark.parametrize("relative_path", sorted(variant.BASELINE_DIGESTS))
 def test_baseline_artifacts_are_never_modified(relative_path):
-    """Rollback layer 2: the frozen baseline must be bit-identical to what
-    shipped before fine-tuning work started. If this fails, the rollback
-    story is broken and the tuned work must not be trusted."""
+    """Rollback layer 2: proves the frozen baseline is identical to the
+    SHA-256 digests recorded before fine-tuning work started, not merely to
+    what happens to be on disk now. If this fails, the rollback story is
+    broken and the tuned work must not be trusted."""
     path = BACKEND / relative_path
     digest = hashlib.sha256(path.read_bytes()).hexdigest()
     assert digest == variant.BASELINE_DIGESTS[relative_path], (

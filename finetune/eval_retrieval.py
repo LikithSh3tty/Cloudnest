@@ -19,6 +19,11 @@ ROOT = Path(__file__).resolve().parent.parent
 BACKEND = ROOT / "backend"
 DEFAULT_EVAL_PATH = Path(__file__).resolve().parent / "data" / "eval_questions.jsonl"
 
+# Hoisted to module import time rather than inside rank_for(): that function
+# runs once per eval question (54 times per score() call), and re-inserting
+# the same path on every call left 54 duplicate entries in sys.path per run.
+sys.path.insert(0, str(BACKEND))
+
 
 def load_eval_set(path: Path = DEFAULT_EVAL_PATH) -> list[dict]:
     """Read the labeled eval set. Each row: question, doc, title, kind."""
@@ -31,7 +36,6 @@ def load_eval_set(path: Path = DEFAULT_EVAL_PATH) -> list[dict]:
 
 def rank_for(question: str, vectors: np.ndarray, meta: list[dict]) -> list[dict]:
     """Order the whole corpus by descending cosine against the question."""
-    sys.path.insert(0, str(BACKEND))
     from embed import embed
 
     scores = vectors @ embed([question])[0]

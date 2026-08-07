@@ -335,7 +335,8 @@ def fuse_results(semantic: dict, lexical: dict) -> dict:
 
     context: RRF of the two rankings, capped at TOP_K, sent to the LLM and
     used for citations. confidence: the semantic cosine top-1 when semantic
-    ran (preserves the calibrated 0.30 gate), else the lexical ratio so the
+    ran (preserves the calibrated gate, which is variant-dependent — 0.30
+    under baseline, 0.28 under finetuned), else the lexical ratio so the
     bot still answers in fully-degraded mode. lexical_rescue: passed through
     for the gate's borderline rescue rule.
     """

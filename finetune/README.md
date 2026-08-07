@@ -26,7 +26,8 @@ that variant is explicitly selected.
   `cloudnest_docs/`), `title` (the section heading that actually answers the
   question), and `kind` (`lookup`, `multi`, or `hard`). Every `(doc, title)`
   pair was verified against `backend.app.load_chunks()` output before being
-  committed — see Step 1 of the Task 2 brief for the verification snippet.
+  committed, by loading the chunks and checking membership directly rather
+  than by hand.
 
 - **`make_pairs.py`** — generates `data/train_pairs.jsonl`, synthetic
   (question, section) training pairs written by Claude in a user's
@@ -41,7 +42,7 @@ that variant is explicitly selected.
 
   **`data/train_pairs.jsonl` now covers 40 of the 46 sections in
   `backend.app.load_chunks()`, 464 rows.** Two things happened to get
-  here, both recorded in the task-3 report:
+  here:
 
   - The first generation pass hit the Anthropic API credit wall mid-run
     (section 37 of 46) and 61 of its rows had come from 5 near-
@@ -68,10 +69,7 @@ that variant is explicitly selected.
   ```
 
   This is effectively full coverage of the content-bearing corpus (40 of
-  46 chunks; the remaining 6 have no content to train on). Full detail,
-  including the widened leakage check, the relabel/delete mapping applied
-  to the 61 rows, and the resumed top-up run, is in
-  `.superpowers/sdd/2026-08-07-finetune-retriever/task-3-report.md`.
+  46 chunks; the remaining 6 have no content to train on).
 
 - **`train.py`** — fine-tunes `sentence-transformers/all-MiniLM-L6-v2` on
   `data/train_pairs.jsonl` with `MultipleNegativesRankingLoss` (in-batch
@@ -145,12 +143,15 @@ python finetune/eval_retrieval.py --variant finetuned
 | fine-tuned (int8, served) | 0.648 | 0.963 | 0.792 |
 
 recall@1 regressed (0.667 → 0.648), so by the pre-registered rule **`baseline`
-stays the default** — `backend/variant.py`'s fallback is unchanged. At n=54
-none of these deltas clear the noise floor (~6.5pp binomial standard error
-near p≈0.65) required for conventional confidence, so this is not read as
-"fine-tuning made things worse" either — the honest statement is that this
-run cannot distinguish fine-tuning's effect from noise on any headline
-metric. The full writeup, including the empty-control-slice caveat (every
+stays the default** — `backend/variant.py`'s fallback is unchanged. These are
+paired comparisons on the same 54 questions, so McNemar's test on discordant
+pairs is the right instrument, not a blanket single-proportion bar; per-metric
+binomial standard error is ~6.4pp near recall@1's p≈0.667 and ~3.6pp near
+recall@3's p≈0.926, and none of the deltas clear either bar (recall@3's 2
+discordant pairs fall well short of the ~6 McNemar would need), so this is
+not read as "fine-tuning made things worse" either — the honest statement is
+that this run cannot distinguish fine-tuning's effect from noise on any
+headline metric. The full writeup, including the empty-control-slice caveat (every
 gold section the 54 eval questions target already has training pairs, so
 there is no untrained slice to check for regression against) and the rest
 of the limitations, lives in the repo root [`README.md`](../README.md#fine-tuning-the-retriever),

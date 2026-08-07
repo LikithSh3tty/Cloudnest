@@ -13,8 +13,9 @@ sentence-transformers (5.7.0) raises a DeprecationWarning the instant you
 `from sentence_transformers import losses` or call InputExample/model.fit,
 and that path is slated for removal. SentenceTransformerTrainer is the
 current, non-deprecated way to run the same recipe - same loss, same
-(anchor, positive) pairs, in-batch negatives, shuffled, drop_last=True,
-3 epochs, batch size 32, 10% warmup.
+(anchor, positive) pairs, in-batch negatives, shuffled, drop_last=False,
+3 epochs, batch size 32, 10% warmup. See the drop_last comment below for
+why False rather than the brief's True.
 """
 import argparse
 import json

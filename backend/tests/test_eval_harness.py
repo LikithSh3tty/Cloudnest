@@ -67,6 +67,21 @@ def test_eval_questions_are_unique():
     assert len(questions) == len(set(questions)), "duplicate eval questions skew the metrics"
 
 
+def test_no_exact_overlap_between_train_and_eval():
+    """The central claim of the fine-tuning writeup - the eval set was never
+    trained on - was previously checked only by one-off manual scripts.
+    Exact-match is the contract; the disclosed near-duplicates (README
+    limitation #4) are fuzzy matches, not exact ones, so they don't fail this."""
+    train_path = FINETUNE / "data" / "train_pairs.jsonl"
+    if not train_path.exists():
+        pytest.skip("train_pairs.jsonl not present")
+    normalize = lambda t: "".join(c for c in t.lower() if c.isalnum() or c == " ").strip()
+    train_qs = {normalize(json.loads(l)["question"])
+                for l in train_path.read_text(encoding="utf-8").splitlines() if l.strip()}
+    eval_qs = {normalize(r["question"]) for r in load_eval_set(EVAL_PATH)}
+    assert not (train_qs & eval_qs), "an eval question leaked into the training pairs"
+
+
 def test_ranking_returns_the_whole_corpus_in_order():
     index = load_index()
     if index is None:
