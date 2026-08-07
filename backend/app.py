@@ -117,7 +117,9 @@ def load_chunks() -> list[dict]:
             chunks.append({"doc": doc.name, "title": title, "text": section.strip()})
     return chunks
 
-INDEX_PATH = Path(__file__).resolve().parent / "index.npz"
+from variant import index_filename
+
+INDEX_PATH = Path(__file__).resolve().parent / index_filename()
 
 
 def docs_hash() -> str:

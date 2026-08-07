@@ -13,10 +13,15 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from app import INDEX_PATH, docs_hash, load_chunks
 from embed import MODEL_ID, embed
+from variant import active_variant
 
 
 def build(path: Path = INDEX_PATH) -> int:
-    """Embed every chunk and write the index. Returns the chunk count."""
+    """Embed every chunk and write the index. Returns the chunk count.
+
+    Writes whichever index the active variant selects, so building under
+    EMBED_VARIANT=finetuned cannot overwrite the baseline index.
+    """
     chunks = load_chunks()
     # one call per chunk, not one batched call: query-time embed() is always a
     # batch of one, and this int8 model's output shifts with batch padding
@@ -37,7 +42,7 @@ def main() -> None:
                         help="report the similarity gap and suggest a threshold")
     args = parser.parse_args()
     count = build()
-    print(f"indexed {count} chunks -> {INDEX_PATH}")
+    print(f"indexed {count} chunks -> {INDEX_PATH} (variant: {active_variant()})")
     if args.calibrate:
         from calibrate import report  # added in Task 4
         report()

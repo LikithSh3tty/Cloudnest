@@ -10,8 +10,13 @@ import numpy as np
 import onnxruntime as ort
 from tokenizers import Tokenizer
 
+from variant import model_filename
+
 MODEL_DIR = Path(__file__).resolve().parent / "model"
-MODEL_ID = "model_quint8_avx2.onnx"
+# Not a constant any more, but still read once at import: the ONNX session
+# below is built from it, and swapping models mid-process would leave the
+# index (loaded separately, in app.py) pointing at the other variant.
+MODEL_ID = model_filename()
 MAX_TOKENS = 256
 DIM = 384
 
