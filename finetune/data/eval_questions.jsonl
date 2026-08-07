@@ -1,0 +1,54 @@
+{"question": "What is CloudNest?", "doc": "01_product_overview.md", "title": "CloudNest — Product Overview", "kind": "lookup"}
+{"question": "What are the core features of CloudNest?", "doc": "01_product_overview.md", "title": "Core Features", "kind": "lookup"}
+{"question": "Which operating systems does CloudNest support?", "doc": "01_product_overview.md", "title": "Supported Platforms", "kind": "lookup"}
+{"question": "Does CloudNest have a mobile app?", "doc": "07_general_faq.md", "title": "Is there a mobile app?", "kind": "lookup"}
+{"question": "What backup schedules are available?", "doc": "01_product_overview.md", "title": "Core Features", "kind": "lookup"}
+{"question": "What plans does CloudNest offer?", "doc": "01_product_overview.md", "title": "Plans", "kind": "lookup"}
+{"question": "Compare the Free, Pro, and Team plans.", "doc": "02_pricing_billing.md", "title": "Plans and Pricing", "kind": "lookup"}
+{"question": "How much does the Pro plan cost?", "doc": "02_pricing_billing.md", "title": "Plans and Pricing", "kind": "lookup"}
+{"question": "Is there an annual discount?", "doc": "02_pricing_billing.md", "title": "Billing Cycle", "kind": "lookup"}
+{"question": "What happens if my payment fails?", "doc": "02_pricing_billing.md", "title": "Failed Payments", "kind": "lookup"}
+{"question": "What happens if I downgrade my subscription?", "doc": "02_pricing_billing.md", "title": "Upgrading and Downgrading", "kind": "lookup"}
+{"question": "Can Team customers pay by bank transfer?", "doc": "02_pricing_billing.md", "title": "Payment Methods", "kind": "lookup"}
+{"question": "Are monthly subscriptions refundable?", "doc": "02_pricing_billing.md", "title": "Cancellation", "kind": "lookup"}
+{"question": "How do I install the CloudNest desktop app?", "doc": "04_technical_setup.md", "title": "Installing the Desktop App", "kind": "lookup"}
+{"question": "What is Selective Sync?", "doc": "04_technical_setup.md", "title": "Selective Sync", "kind": "lookup"}
+{"question": "Where can I configure bandwidth limits?", "doc": "04_technical_setup.md", "title": "Bandwidth Limits", "kind": "lookup"}
+{"question": "How do I generate an API key?", "doc": "04_technical_setup.md", "title": "API Access", "kind": "lookup"}
+{"question": "What is the API rate limit?", "doc": "04_technical_setup.md", "title": "API Access", "kind": "lookup"}
+{"question": "Does CloudNest provide a CLI?", "doc": "04_technical_setup.md", "title": "CLI Tool", "kind": "lookup"}
+{"question": "Can I use the CLI on Linux?", "doc": "04_technical_setup.md", "title": "CLI Tool", "kind": "lookup"}
+{"question": "What happens if the same file is edited on two devices while offline?", "doc": "04_technical_setup.md", "title": "Conflict Resolution", "kind": "lookup"}
+{"question": "How is my data encrypted?", "doc": "06_security_privacy.md", "title": "Encryption", "kind": "lookup"}
+{"question": "Does CloudNest support end-to-end encryption?", "doc": "06_security_privacy.md", "title": "Encryption", "kind": "lookup"}
+{"question": "Is CloudNest HIPAA compliant?", "doc": "06_security_privacy.md", "title": "Compliance", "kind": "lookup"}
+{"question": "Can Team plans use EU data residency?", "doc": "06_security_privacy.md", "title": "Data Residency", "kind": "lookup"}
+{"question": "What happens if I lose my encryption key?", "doc": "06_security_privacy.md", "title": "Encryption", "kind": "lookup"}
+{"question": "How do I reset my password?", "doc": "03_account_management.md", "title": "Password Reset", "kind": "lookup"}
+{"question": "How do I change my email address?", "doc": "03_account_management.md", "title": "Changing Your Email", "kind": "lookup"}
+{"question": "Does CloudNest support two-factor authentication?", "doc": "03_account_management.md", "title": "Two-Factor Authentication (2FA)", "kind": "lookup"}
+{"question": "How do I permanently delete my account?", "doc": "03_account_management.md", "title": "Deleting an Account", "kind": "lookup"}
+{"question": "Can I recover my account after deleting it?", "doc": "03_account_management.md", "title": "Deleting an Account", "kind": "lookup"}
+{"question": "My sync is stuck. What should I do?", "doc": "05_troubleshooting.md", "title": "Sync Stuck / Not Progressing", "kind": "lookup"}
+{"question": "Why is my sync so slow?", "doc": "05_troubleshooting.md", "title": "Slow Sync Speeds", "kind": "lookup"}
+{"question": "What does \"Storage Full\" mean?", "doc": "05_troubleshooting.md", "title": "\"Storage Full\" Error", "kind": "lookup"}
+{"question": "How can I recover deleted files?", "doc": "05_troubleshooting.md", "title": "Files Missing After Sync", "kind": "lookup"}
+{"question": "Why does the app keep asking me to sign in?", "doc": "05_troubleshooting.md", "title": "Login Loop / Repeated Sign-In Prompts", "kind": "lookup"}
+{"question": "The desktop app won't launch. How can I fix it?", "doc": "05_troubleshooting.md", "title": "App Won't Launch (Desktop)", "kind": "lookup"}
+{"question": "Which plans include API access, and how much do they cost?", "doc": "04_technical_setup.md", "title": "API Access", "kind": "multi"}
+{"question": "I need API access and support for five devices. Which plan should I choose?", "doc": "02_pricing_billing.md", "title": "Plans and Pricing", "kind": "multi"}
+{"question": "My storage is full and syncing has stopped. What should I do?", "doc": "05_troubleshooting.md", "title": "\"Storage Full\" Error", "kind": "multi"}
+{"question": "I accidentally deleted a file yesterday. Can I still recover it?", "doc": "05_troubleshooting.md", "title": "Files Missing After Sync", "kind": "multi"}
+{"question": "I signed in using Google and forgot my password. What should I do?", "doc": "03_account_management.md", "title": "Password Reset", "kind": "multi"}
+{"question": "Which plans support API access, and what storage do they provide?", "doc": "04_technical_setup.md", "title": "API Access", "kind": "multi"}
+{"question": "I need API access, Linux support, and 500 GB of storage. Which plan is right for me?", "doc": "02_pricing_billing.md", "title": "Plans and Pricing", "kind": "multi"}
+{"question": "I need unlimited devices, EU data residency, and API access. Which plan should I choose?", "doc": "06_security_privacy.md", "title": "Data Residency", "kind": "multi"}
+{"question": "I'm using 600 GB of storage and my payment failed three times. What happens to my account?", "doc": "02_pricing_billing.md", "title": "Failed Payments", "kind": "multi"}
+{"question": "What security features protect my files during upload, storage, and sharing?", "doc": "06_security_privacy.md", "title": "Encryption", "kind": "multi"}
+{"question": "I'm a Linux developer with 12 employees. We need API access, EU data residency, bank transfer payments, CLI automation, and unlimited devices. Which plan should we choose, and why?", "doc": "02_pricing_billing.md", "title": "Payment Methods", "kind": "multi"}
+{"question": "I'm moving from the Free plan to Team. Explain every feature I'll gain, every billing change, every security improvement, and every developer capability available after upgrading.", "doc": "02_pricing_billing.md", "title": "Upgrading and Downgrading", "kind": "multi"}
+{"question": "Compare the Free, Pro, and Team plans in terms of storage, devices, pricing, API access, billing, and payment methods.", "doc": "02_pricing_billing.md", "title": "Plans and Pricing", "kind": "multi"}
+{"question": "Explain the complete lifecycle of a deleted file, from deletion, to Trash recovery, to permanent account deletion.", "doc": "05_troubleshooting.md", "title": "Files Missing After Sync", "kind": "multi"}
+{"question": "What's the cheapest way to get API access while supporting five devices?", "doc": "02_pricing_billing.md", "title": "Plans and Pricing", "kind": "multi"}
+{"question": "My sync stopped because my storage is full. Will emptying the Trash fix it, or should I upgrade?", "doc": "05_troubleshooting.md", "title": "\"Storage Full\" Error", "kind": "multi"}
+{"question": "I accidentally edited the same file on two devices while offline. What happens when they sync again?", "doc": "04_technical_setup.md", "title": "Conflict Resolution", "kind": "multi"}
