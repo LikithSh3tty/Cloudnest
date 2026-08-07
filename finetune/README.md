@@ -73,9 +73,29 @@ that variant is explicitly selected.
   to the 61 rows, and the resumed top-up run, is in
   `.superpowers/sdd/2026-08-07-finetune-retriever/task-3-report.md`.
 
-Scripts that fine-tune the model (Task 4 onward: fine-tuning MiniLM,
-exporting int8 ONNX, building the tuned index) land in this directory in
-later tasks and will be documented here as they're added.
+- **`train.py`** — fine-tunes `sentence-transformers/all-MiniLM-L6-v2` on
+  `data/train_pairs.jsonl` with `MultipleNegativesRankingLoss` (in-batch
+  negatives, `BatchSamplers.NO_DUPLICATES`), 3 epochs, batch size 32 (15
+  batches/epoch, `ceil(464/32)`). Writes an fp32 checkpoint to
+  `artifacts/finetuned-fp32/` (gitignored — reproduce by re-running, not by
+  fetching from history).
+
+  ```bash
+  python finetune/train.py --epochs 3 --batch-size 32
+  ```
+
+- **`export_onnx.py`** — exports the fp32 checkpoint to int8 ONNX, matching
+  the serving format the frozen baseline already ships in (`backend/embed.py`
+  expects `input_ids`/`attention_mask` in, per-token hidden states out, no
+  pooling layer baked into the graph). Writes
+  `backend/model/model_finetuned_quint8_avx2.onnx`.
+
+  ```bash
+  python finetune/export_onnx.py
+  ```
+
+Build the tuned index with `EMBED_VARIANT=finetuned python backend/build_index.py`,
+then compare against baseline with `eval_retrieval.py` (see below).
 
 ## `data/eval_questions.jsonl` is held out — never train on it
 
@@ -112,11 +132,33 @@ EMBED_VARIANT=finetuned python backend/build_index.py
 python finetune/eval_retrieval.py --variant baseline
 python finetune/eval_retrieval.py --variant finetuned
 
-# 6. (Task 6) Only if the tuned int8 variant beats baseline int8 on the
-#    held-out set does it become the default. A null result is an
-#    acceptable, reportable outcome — the eval set is not adjusted to
-#    manufacture a win.
+# 6. Apply the pre-registered rule: tuned becomes default only if it beats
+#    baseline on recall@1 AND does not regress recall@3.
 ```
+
+## Result
+
+|          | recall@1 | recall@3 | MRR@10 |
+|---|---|---|---|
+| baseline (frozen int8) | 0.667 | 0.926 | 0.788 |
+| fine-tuned (fp32) | 0.648 | 0.963 | 0.793 |
+| fine-tuned (int8, served) | 0.648 | 0.963 | 0.792 |
+
+recall@1 regressed (0.667 → 0.648), so by the pre-registered rule **`baseline`
+stays the default** — `backend/variant.py`'s fallback is unchanged. At n=54
+none of these deltas clear the noise floor (~6.5pp binomial standard error
+near p≈0.65) required for conventional confidence, so this is not read as
+"fine-tuning made things worse" either — the honest statement is that this
+run cannot distinguish fine-tuning's effect from noise on any headline
+metric. The full writeup, including the empty-control-slice caveat (every
+gold section the 54 eval questions target already has training pairs, so
+there is no untrained slice to check for regression against) and the rest
+of the limitations, lives in the repo root [`README.md`](../README.md#fine-tuning-the-retriever),
+not duplicated here.
+
+The tuned artifacts (`backend/model/model_finetuned_quint8_avx2.onnx`,
+`backend/index_finetuned.npz`) stay committed and reachable with
+`EMBED_VARIANT=finetuned`; nothing about this result removes them.
 
 ## Rollback guarantees
 
