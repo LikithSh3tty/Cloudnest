@@ -127,28 +127,42 @@ def test_score_restores_environment_after_call(clean_variant_state):
     )
 
 
-def test_cross_variant_calls_do_not_corrupt_each_other(clean_variant_state):
-    """The scenario Finding 3 exists to protect: Task 5 calls score() for
-    two variants back to back in one process. "finetuned" has no built
-    index yet, so that call raises SystemExit from the missing-index
-    branch — and a baseline call made afterward must be unaffected by it.
+def test_score_restores_environment_after_a_failed_call(clean_variant_state):
+    """The exception path is the real hazard Finding 3 was about: score()
+    sets os.environ["EMBED_VARIANT"] near the top of the function, then
+    raises SystemExit from the missing-index branch when a variant has no
+    built index. "finetuned" has no built index yet, so this raises for
+    real. Without the try/finally, the raise would skip the restore and
+    leave EMBED_VARIANT dirty for every call afterward in the process —
+    exactly what Task 5 will hit the first time it evaluates "finetuned"
+    before that variant's index has been built.
 
-    A same-variant idempotency check (call "baseline" twice) cannot catch
-    this: leaked state from a "baseline" call is itself valid "baseline"
-    state, so a second "baseline" call produces the same answer whether or
-    not anything was restored in between. Only an intervening call for a
-    *different* variant can expose leftover EMBED_VARIANT or a stale
-    module still configured for that other variant.
+    (A same-variant or cross-variant *success* comparison was tried in an
+    earlier round and rejected: score() unconditionally pops and
+    reimports variant/embed/app at the top of every call regardless of
+    the try/finally fix, so a later successful call self-heals any
+    leftover module state and the comparison can't fail against the bug.
+    The env var set on the line before the raise, never unset because the
+    raise skips everything after it, is the part that only a real
+    exception path exercises.)
     """
     index = load_index()
     if index is None:
         pytest.skip("no index available")
 
-    first = score("baseline")
+    # Captured into a plain local before each assert, never asserted on
+    # os.environ directly: an earlier round's `"EMBED_VARIANT" not in
+    # os.environ` assertion made pytest print the whole environment —
+    # including real API keys and tokens on this machine — into the
+    # failure traceback. Asserting on a local keeps a failure's
+    # introspection to just that one non-secret value.
+    embed_variant = os.environ.get("EMBED_VARIANT")
+    assert embed_variant is None
 
     with pytest.raises(SystemExit):
         score("finetuned")
 
-    second = score("baseline")
-
-    assert first == second
+    embed_variant = os.environ.get("EMBED_VARIANT")
+    assert embed_variant is None, (
+        "score() must restore EMBED_VARIANT even when it raises SystemExit"
+    )
