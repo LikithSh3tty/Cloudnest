@@ -147,8 +147,10 @@ stays the default** — `backend/variant.py`'s fallback is unchanged. These are
 paired comparisons on the same 54 questions, so McNemar's test on discordant
 pairs is the right instrument, not a blanket single-proportion bar; per-metric
 binomial standard error is ~6.4pp near recall@1's p≈0.667 and ~3.6pp near
-recall@3's p≈0.926, and none of the deltas clear either bar (recall@3's 2
-discordant pairs fall well short of the ~6 McNemar would need), so this is
+recall@3's p≈0.926, and none of the deltas clear either bar (recall@3's net
++2 comes from 4 discordant pairs, 1 favoring baseline and 3 favoring
+fine-tuned; exact McNemar on that split gives p≈0.625, nowhere near
+significant), so this is
 not read as "fine-tuning made things worse" either — the honest statement is
 that this run cannot distinguish fine-tuning's effect from noise on any
 headline metric. The full writeup, including the empty-control-slice caveat (every
